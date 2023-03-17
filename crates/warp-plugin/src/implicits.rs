@@ -3,17 +3,20 @@ use cairo_lang_defs::plugin::PluginDiagnostic;
 use cairo_lang_semantic::patcher::RewriteNode;
 use cairo_lang_syntax::node::{ast, Terminal, TypedSyntaxNode};
 use cairo_lang_syntax::node::db::SyntaxGroup;
+use smol_str::SmolStr;
 
 const IMPLICIT_ATTR: &str = "implicit";
 const WARPMEMORY_TYPE: &str = "DictFelt252To<u128>";
 const WARPMEMORY_NAME: &str = "warp_memory";
+const WARPMEMORY_IMPORT : &str = "use warplib::memory::WarpMemoryTrait;";
 
 pub fn handle_implicits(
     db: &dyn SyntaxGroup,
     function_ast: &ast::FunctionWithBody,
-) -> (Option<RewriteNode>, Vec<PluginDiagnostic>) {
+) -> (Option<RewriteNode>, Vec<SmolStr>, Vec<PluginDiagnostic>) {
     let mut diagnostics = vec![];
     let mut arguments = vec![];
+    let mut imports = vec![];
     let _declaration = function_ast.declaration(db);
     let attributes = function_ast.attributes(db);
 
@@ -34,6 +37,7 @@ pub fn handle_implicits(
                             arguments.push(format!(
                                 "ref {arg_name}: {WARPMEMORY_TYPE}, "
                             ));
+                            imports.push(WARPMEMORY_IMPORT.into());
                         } else {
                             diagnostics.push(PluginDiagnostic {
                                 stable_ptr: expr.stable_ptr().untyped(),
@@ -57,11 +61,11 @@ pub fn handle_implicits(
     }
 
     if !diagnostics.is_empty() {
-        return (None, diagnostics);
+        return (None, imports, diagnostics);
     }
 
     if arguments.is_empty() {
-        return (None, diagnostics);
+        return (None, imports, diagnostics);
     }
 
     let mut func_declaration = RewriteNode::from_ast(&function_ast.declaration(db));
@@ -91,6 +95,7 @@ pub fn handle_implicits(
                 ),
             ]),
         )),
+        imports,
         diagnostics
     )
 }

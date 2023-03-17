@@ -40,7 +40,6 @@ impl Compiler for WarpCompiler {
             .unwrap_or_else(|e| panic!("Problem getting the corelib path: {e:?}"));
         config.corelib= Some(Directory(core_dir.into()));
 
-        println!("config: {:#?}", config);
         let mut db = RootDatabase::builder()
             .with_project_config(config)
             .with_warp().build()?;
