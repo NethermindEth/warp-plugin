@@ -4,9 +4,10 @@
 ExpandContractTestRunner
 
 //! > cairo_code
+#[contract]
 mod Module1{
 	mod Module{
-		use warp::memory::WarpMemoryTrait;
+		use warplib::memory::WarpMemoryTrait;
 
 		#[implicit(warp_memory)]
 		fn read_from_memory(index: felt252) {
@@ -18,9 +19,10 @@ mod Module1{
 //! > expected_diagnostics
 
 //! > generated_cairo_code
+#[contract]
 mod Module1 {
     mod Module {
-        use warp::memory::WarpMemoryTrait;
+        use warplib::memory::WarpMemoryTrait;
 
 
         fn read_from_memory(ref warp_memory: DictFelt252To<u128>, index: felt252) {

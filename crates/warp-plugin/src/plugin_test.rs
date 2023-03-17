@@ -25,11 +25,7 @@ struct ExpandContractTestRunner {
 impl Default for ExpandContractTestRunner {
     fn default() -> Self {
         Self {
-            db: RootDatabase::builder().with_warp_config(ProjectConfig{
-                base_path: Default::default(),
-                corelib: None,
-                content: ProjectConfigContent { crate_roots: Default::default() },
-            }).build().unwrap(),
+            db: RootDatabase::builder().with_warp_default().build().unwrap(),
         }
     }
 }

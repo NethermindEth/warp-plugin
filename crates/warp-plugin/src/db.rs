@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -6,10 +7,11 @@ use cairo_lang_compiler::db::{RootDatabase, RootDatabaseBuilder};
 use cairo_lang_filesystem::db::init_dev_corelib;
 use cairo_lang_filesystem::ids::Directory;
 use cairo_lang_plugins::get_default_plugins;
-use cairo_lang_project::ProjectConfig;
+use cairo_lang_project::{ProjectConfig, ProjectConfigContent};
 use cairo_lang_semantic::db::SemanticGroup;
 use cairo_lang_semantic::plugin::SemanticPlugin;
 use cairo_lang_starknet::plugin::StarkNetPlugin;
+use scarb::core::Config;
 
 
 use crate::plugin::WarpPlugin;
@@ -26,7 +28,7 @@ pub trait WarpRootDatabaseBuilderEx {
     /// Tunes a compiler database to Warp (e.g. Warp plugin).
     fn with_warp(&mut self) -> &mut Self;
 
-    fn with_warp_config(&mut self, config: ProjectConfig) -> &mut Self;
+    fn with_warp_default(&mut self) -> &mut Self;
 }
 
 impl WarpRootDatabaseBuilderEx for RootDatabaseBuilder {
@@ -52,17 +54,20 @@ impl WarpRootDatabaseBuilderEx for RootDatabaseBuilder {
         self.with_implicit_precedence(&precedence).with_plugins(plugins)
     }
 
-    fn with_warp_config(&mut self, config: ProjectConfig) -> &mut Self {
-        let mut project_config: ProjectConfig = config;
-
-        let dir = std::env::var("CAIRO_WARPLIB_DIR")
-            .unwrap_or_else(|e| panic!("Problem getting the warplib path: {e:?}"));
-        project_config.content.crate_roots.insert(WARPLIB_CRATE_NAME.into(), dir.into());
-
-        let dir = std::env::var("CAIRO_CORELIB_DIR")
+    fn with_warp_default(&mut self) -> &mut Self {
+        let core_dir = std::env::var("CAIRO_CORELIB_DIR")
             .unwrap_or_else(|e| panic!("Problem getting the corelib path: {e:?}"));
-        project_config.corelib = Some(Directory(dir.into()));
-        self.with_project_config(project_config);
+        let warplib_dir = std::env::var("CAIRO_WARPLIB_DIR")
+            .unwrap_or_else(|e| panic!("Problem getting the dojolib path: {e:?}"));
+        // this overrides the config and the crate path is not found properly.
+        let config = ProjectConfig {
+            base_path: "".into(),
+            content: ProjectConfigContent {
+                crate_roots: HashMap::from([(WARPLIB_CRATE_NAME.into(), warplib_dir.into())]),
+            },
+            corelib: Some(Directory(core_dir.into())),
+        };
+        self.with_project_config(config);
         self.with_warp()
     }
 }

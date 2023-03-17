@@ -3,6 +3,8 @@ use std::ops::DerefMut;
 
 use anyhow::{ensure, Context, Result};
 use cairo_lang_compiler::db::RootDatabase;
+use cairo_lang_filesystem::ids::Directory;
+use cairo_lang_project::{ProjectConfig, ProjectConfigContent};
 use cairo_lang_starknet::contract::find_contracts;
 use cairo_lang_starknet::contract_class::compile_prepared_db;
 use cairo_lang_utils::Upcast;
@@ -32,13 +34,17 @@ impl Compiler for WarpCompiler {
 
         let target_dir = unit.profile.target_dir(ws.config());
 
-        let project_config = build_project_config(&unit)?;
-        let mut db = RootDatabase::builder()
-            .with_project_config(project_config)
-            .with_warp()
-            .build()?;
+        // override config with local corelib
+        let mut config = build_project_config(&unit)?;
+        let core_dir = std::env::var("CAIRO_CORELIB_DIR")
+            .unwrap_or_else(|e| panic!("Problem getting the corelib path: {e:?}"));
+        config.corelib= Some(Directory(core_dir.into()));
 
-        let compiler_config = build_compiler_config(&unit,ws);
+        println!("config: {:#?}", config);
+        let mut db = RootDatabase::builder()
+            .with_project_config(config)
+            .with_warp().build()?;
+        let compiler_config = build_compiler_config(&unit, ws);
 
         let main_crate_ids = collect_main_crate_ids(&unit, &db);
 

@@ -9,8 +9,8 @@ use cairo_lang_semantic::plugin::{AsDynGeneratedFileAuxData, AsDynMacroPlugin, D
 use cairo_lang_semantic::SemanticDiagnostic;
 use cairo_lang_syntax::node::db::SyntaxGroup;
 
-use cairo_lang_syntax::node::{ast, Terminal, TypedSyntaxNode};
-use cairo_lang_syntax::node::ast::{FunctionWithBody, MaybeModuleBody, ModuleBody};
+use cairo_lang_syntax::node::{ast, SyntaxNode, Terminal, TypedSyntaxNode};
+use cairo_lang_syntax::node::ast::{AttributeList, FunctionWithBody, MaybeModuleBody, ModuleBody};
 
 use smol_str::SmolStr;
 
@@ -82,8 +82,10 @@ impl WarpPlugin {
         let name = module_ast.name(
             db).text(db);
         if let MaybeModuleBody::Some(body) = module_ast.body(db) {
-            let (rewrite_nodes, diagnostics) = self.handle_module_nodes(db, body, name.clone());
+            let attributes = module_ast.attributes(db).as_syntax_node();
+            let (rewrite_nodes, diagnostics) = self.handle_module_nodes(db, body, name.clone(), attributes);
             return if let Some(module_rewrites) = rewrite_nodes {
+                let module_attributes= module_ast.attributes(db).as_syntax_node();
                 let mut builder = PatchBuilder::new(db);
                 builder.add_modified(module_rewrites);
                 PluginResult {
@@ -143,7 +145,7 @@ impl WarpPlugin {
     /// Handles nodes inside a module.
     /// Rewrites the inner functions annoted with `#[implicit]` by adding the implicits to the function signature.
     /// Recursively handles nested modules.
-    fn handle_module_nodes(&self, db: &dyn SyntaxGroup, module_body: ModuleBody, name: SmolStr) -> (Option<RewriteNode>, Vec<PluginDiagnostic>) {
+    fn handle_module_nodes(&self, db: &dyn SyntaxGroup, module_body: ModuleBody, name: SmolStr, attributes:SyntaxNode) -> (Option<RewriteNode>, Vec<PluginDiagnostic>) {
         let mut kept_original_items = vec![];
         let mut modified_functions = vec![];
         let mut modified_modules = vec![];
@@ -155,7 +157,7 @@ impl WarpPlugin {
             .iter()
             .for_each(|el| {
                 if let ast::Item::FreeFunction(function_ast) = el {
-                    let (rewrite_nodes, implicit_diagnostics) = handle_implicits(db, function_ast);
+                    let (rewrite_nodes, implicit_diagnostics) = handle_implicits(db, &function_ast);
                     if let Some(implicit_functions_rewrite) = rewrite_nodes {
                         modified_functions.push(implicit_functions_rewrite);
                     }
@@ -165,7 +167,8 @@ impl WarpPlugin {
                         db).text(db);
 
                     if let MaybeModuleBody::Some(body) = module_ast.body(db) {
-                        let (rewrite_nodes, module_diagnostics) = self.handle_module_nodes(db, body, name);
+                        let attributes = module_ast.attributes(db).as_syntax_node();
+                        let (rewrite_nodes, module_diagnostics) = self.handle_module_nodes(db, body, name, attributes);
                         if let Some(module_rewrites) = rewrite_nodes {
                             modified_modules.push(module_rewrites);
                         }
@@ -183,6 +186,7 @@ impl WarpPlugin {
         (Some
              (RewriteNode::interpolate_patched(
                  "
+                $attributes$
                 mod $name$ {
                     $original_items$
                     $modified_functions$
@@ -190,6 +194,7 @@ impl WarpPlugin {
                 }
                 ",
                  HashMap::from([
+                     ("attributes".to_string(), RewriteNode::new_trimmed(attributes)),
                      ("name".to_string(), RewriteNode::Text(name.to_string())),
                      ("original_items".to_string(), RewriteNode::new_modified(kept_original_items)),
                      ("modified_functions".to_string(), RewriteNode::new_modified(modified_functions)),
