@@ -24,6 +24,16 @@ impl Compiler for WarpCompiler {
         "warp"
     }
 
+    /// Compiles the given compilation unit and writes the resulting contracts to JSON files.
+    ///
+    /// # Arguments
+    ///
+    /// * `unit` - The compilation unit to be compiled.
+    /// * `ws` - The workspace that contains the project configuration.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` with the unit's contracts compiled into JSON files, or an error if the compilation fails.
     fn compile(&self, unit: CompilationUnit, ws: &Workspace<'_>) -> Result<()> {
         let props = unit.target.kind.downcast::<ExternalTargetKind>();
         ensure!(

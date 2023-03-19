@@ -43,6 +43,14 @@ impl WarpRootDatabaseBuilderEx for RootDatabaseBuilder {
         Ok(db)
     }
 
+    /// Adds the Warp plugin to a Cairo RootDatabaseBuilder instance and sets the implicit precedence for
+    /// compatibility with Starknet.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the modified `RootDatabaseBuilder` instance with the Warp plugin included and the
+    /// implicit precedence set for compatibility with Starknet.
+    ///
     fn with_warp(&mut self) -> &mut Self {
         // Override implicit precedence for compatibility with Starknet.
         let precedence = ["Pedersen", "RangeCheck", "Bitwise", "EcOp", "GasBuiltin", "System"];
@@ -54,11 +62,27 @@ impl WarpRootDatabaseBuilderEx for RootDatabaseBuilder {
         self.with_implicit_precedence(&precedence).with_plugins(plugins)
     }
 
+    /// Sets up the Warp default configuration for a Cairo RootDatabaseBuilder instance, overriding the config
+    /// and crate paths.
+    ///
+    /// The function sets up the `corelib` and `crate_roots` paths for the `ProjectConfig` used by
+    /// the Cairo compiler instance, and returns a mutable reference to the modified `RootDatabaseBuilder`
+    /// instance with Warp plugin included.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the modified `RootDatabaseBuilder` instance with Warp included.
+    ///
+    /// # Panics
+    ///
+    /// The function will panic if the `CAIRO_CORELIB_DIR` or `CAIRO_WARPLIB_DIR` environment variables
+    /// cannot be accessed.
+    ///
     fn with_warp_default(&mut self) -> &mut Self {
         let core_dir = std::env::var("CAIRO_CORELIB_DIR")
             .unwrap_or_else(|e| panic!("Problem getting the corelib path: {e:?}"));
         let warplib_dir = std::env::var("CAIRO_WARPLIB_DIR")
-            .unwrap_or_else(|e| panic!("Problem getting the dojolib path: {e:?}"));
+            .unwrap_or_else(|e| panic!("Problem getting the warplib path: {e:?}"));
         // this overrides the config and the crate path is not found properly.
         let config = ProjectConfig {
             base_path: "".into(),

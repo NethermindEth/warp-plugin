@@ -4789,6 +4789,7 @@ dependencies = [
  "indoc 1.0.9",
  "itertools",
  "pretty_assertions",
+ "regex",
  "scarb",
  "serde",
  "serde_json",

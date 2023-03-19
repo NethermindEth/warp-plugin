@@ -10,13 +10,32 @@ const WARPMEMORY_TYPE: &str = "DictFelt252To<u128>";
 const WARPMEMORY_NAME: &str = "warp_memory";
 const WARPMEMORY_IMPORT : &str = "use warplib::memory::WarpMemoryTrait;";
 
+/// Handles the implicits for a Cairo function, returning a tuple containing an optional
+/// `RewriteNode`, a `HashMap` of implicit function names to required import statements, and a vector of any
+/// diagnostic messages.
+///
+/// The function will extract any arguments with an `#[implicit]` attribute and generate import
+/// statements for them. If no arguments are found or if there are any diagnostic messages, the
+/// function will return `None`.
+///
+/// For now, only `warp_memory` is supported.
+/// # Arguments
+///
+/// * `db` - A reference to a `SyntaxGroup` trait object that contains the function's syntax tree.
+/// * `function_ast` - The `FunctionWithBody` representing the function.
+///
+/// # Returns
+///
+/// A tuple containing an optional `RewriteNode`, a `HashMap` of implicit function names to import
+/// statements, and a vector of any diagnostic messages.
+///
 pub fn handle_implicits(
     db: &dyn SyntaxGroup,
     function_ast: &ast::FunctionWithBody,
-) -> (Option<RewriteNode>, Vec<SmolStr>, Vec<PluginDiagnostic>) {
+) -> (Option<RewriteNode>, HashMap<SmolStr,String>, Vec<PluginDiagnostic>) {
     let mut diagnostics = vec![];
     let mut arguments = vec![];
-    let mut imports = vec![];
+    let mut imports = HashMap::new();
     let _declaration = function_ast.declaration(db);
     let attributes = function_ast.attributes(db);
 
@@ -37,7 +56,7 @@ pub fn handle_implicits(
                             arguments.push(format!(
                                 "ref {arg_name}: {WARPMEMORY_TYPE}, "
                             ));
-                            imports.push(WARPMEMORY_IMPORT.into());
+                            imports.insert(arg_name, WARPMEMORY_IMPORT.into());
                         } else {
                             diagnostics.push(PluginDiagnostic {
                                 stable_ptr: expr.stable_ptr().untyped(),

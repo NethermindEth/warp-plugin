@@ -10,6 +10,11 @@ mod Module{
 	fn read_from_memory(index: felt252) {
 		warp_memory.read_u128(index);
 	}
+
+	#[implicit(warp_memory)]
+    fn read_from_memory_2(index: felt252) {
+        warp_memory.read_u128(index);
+    }
 }
 
 //! > expected_diagnostics
@@ -21,6 +26,10 @@ mod Module {
 
 
     fn read_from_memory(ref warp_memory: DictFelt252To<u128>, index: felt252) {
+        warp_memory.read_u128(index);
+    }
+
+    fn read_from_memory_2(ref warp_memory: DictFelt252To<u128>, index: felt252) {
         warp_memory.read_u128(index);
     }
 }

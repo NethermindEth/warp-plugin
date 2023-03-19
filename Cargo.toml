@@ -6,7 +6,7 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-repository = "https://github.com/dojoengine/dojo/"
+repository = "https://github.com/nethermindeth/warp-plugin/"
 license = "Apache-2.0"
 license-file = "LICENSE"
 
