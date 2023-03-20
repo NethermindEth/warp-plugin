@@ -10,7 +10,7 @@ use cairo_lang_filesystem::db::{FilesGroup, FilesGroupEx};
 use cairo_lang_filesystem::ids::{CrateLongId, Directory, FileLongId, VirtualFile};
 use cairo_lang_formatter::format_string;
 use cairo_lang_parser::db::ParserGroup;
-use cairo_lang_project::{ProjectConfig, ProjectConfigContent};
+
 use cairo_lang_semantic::test_utils::setup_test_module;
 use cairo_lang_syntax::node::TypedSyntaxNode;
 use cairo_lang_test_utils::parse_test_file::TestFileRunner;

@@ -4,7 +4,7 @@ use std::ops::DerefMut;
 use anyhow::{ensure, Context, Result};
 use cairo_lang_compiler::db::RootDatabase;
 use cairo_lang_filesystem::ids::Directory;
-use cairo_lang_project::{ProjectConfig, ProjectConfigContent};
+
 use cairo_lang_starknet::contract::find_contracts;
 use cairo_lang_starknet::contract_class::compile_prepared_db;
 use cairo_lang_utils::Upcast;

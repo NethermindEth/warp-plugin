@@ -11,7 +11,7 @@ use cairo_lang_project::{ProjectConfig, ProjectConfigContent};
 use cairo_lang_semantic::db::SemanticGroup;
 use cairo_lang_semantic::plugin::SemanticPlugin;
 use cairo_lang_starknet::plugin::StarkNetPlugin;
-use scarb::core::Config;
+
 
 
 use crate::plugin::WarpPlugin;

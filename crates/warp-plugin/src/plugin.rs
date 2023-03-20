@@ -10,7 +10,7 @@ use cairo_lang_semantic::SemanticDiagnostic;
 use cairo_lang_syntax::node::db::SyntaxGroup;
 use regex::Regex;
 use cairo_lang_syntax::node::{ast, SyntaxNode, Terminal, TypedSyntaxNode};
-use cairo_lang_syntax::node::ast::{AttributeList, FunctionWithBody, MaybeModuleBody, ModuleBody};
+use cairo_lang_syntax::node::ast::{FunctionWithBody, MaybeModuleBody, ModuleBody};
 
 use smol_str::SmolStr;
 
@@ -23,8 +23,8 @@ pub struct WarpAuxData {
     /// Patches of code that need translation in case they have diagnostics.
     pub patches: Patches,
 
-    /// A list of functions that were processed by the plugin.
-    pub functions: Vec<SmolStr>,
+    /// A list of elements that were processed by the plugin.
+    pub elements: Vec<SmolStr>,
 }
 
 impl GeneratedFileAuxData for WarpAuxData {
@@ -97,7 +97,7 @@ impl WarpPlugin {
                         content: builder.code,
                         aux_data: DynGeneratedFileAuxData::new(DynPluginAuxData::new(WarpAuxData {
                             patches: builder.patches,
-                            functions: vec![module_name],
+                            elements: vec![module_name],
                         })),
                     }),
                     diagnostics,
@@ -119,6 +119,8 @@ impl WarpPlugin {
     /// Handles the syntax nodes of a Cairo function and returns a PluginResult containing the generated code
     /// and any diagnostic messages.
     ///
+    /// Technically, this function is visited for every function in the file, but it only does anything
+    /// with top-level functions, as functions inside modules have already been handled by `handle_mod()` since they're visited first.
     /// # Arguments
     ///
     /// * `self` - A reference to the current instance of the plugin.
@@ -130,10 +132,9 @@ impl WarpPlugin {
     /// A `PluginResult` struct containing the generated code, any diagnostic messages, and a boolean
     /// indicating whether the original function should be removed.
     ///
-    fn handle_top_level_functions(&self, db: &dyn SyntaxGroup, func_ast: &FunctionWithBody) -> PluginResult {
+    fn handle_functions(&self, db: &dyn SyntaxGroup, func_ast: &FunctionWithBody) -> PluginResult {
         let (rewrite_nodes, imports, implicit_diagnostics) = handle_implicits(db, func_ast);
         return if let Some(implicit_functions_rewrite) = rewrite_nodes {
-
             // Traverse the AST until you find the root node (the text file itself), which is the parent of the top-level function.
             //     Convert the syntax node to text to analyze the code.
             //     Search for all functions with the #[implicit] attribute using regex.
@@ -142,7 +143,7 @@ impl WarpPlugin {
             //     For all other functions with non-zero IDs, you can assume the required import(s) are already in the file.
             //     Because it would have been added by the first function with ID 0.
 
-            let name = func_ast.declaration(db).name(db).text(db);
+            let func_name = func_ast.declaration(db).name(db).text(db);
             let parent = func_ast.as_syntax_node().parent().unwrap();
 
             // Get the text of the parent syntax node which is the whole file itself.
@@ -153,7 +154,7 @@ impl WarpPlugin {
                 .iter()
                 .filter(|(implicit_name, _)| {
                     let function_indices = get_file_function_indices(&parent_text, implicit_name);
-                    return function_indices.get(name.as_str()).map(|i| *i == 0).unwrap_or(false);
+                    return function_indices.get(func_name.as_str()).map(|i| *i == 0).unwrap_or(false);
                 })
                 .map(|(_, implicit_import)| implicit_import.clone())
                 .collect();
@@ -163,11 +164,11 @@ impl WarpPlugin {
             builder.add_modified(implicit_functions_rewrite);
             PluginResult {
                 code: Some(PluginGeneratedFile {
-                    name: name.clone(),
+                    name: func_name.clone(),
                     content: builder.code,
                     aux_data: DynGeneratedFileAuxData::new(DynPluginAuxData::new(WarpAuxData {
                         patches: builder.patches,
-                        functions: vec![name],
+                        elements: vec![func_name],
                     })),
                 }),
                 diagnostics: implicit_diagnostics,
@@ -215,10 +216,10 @@ impl WarpPlugin {
             .iter()
             .for_each(|el| {
                 if let ast::Item::FreeFunction(function_ast) = el {
-                    let (rewrite_nodes, implicit_imports, implicit_diagnostics) = handle_implicits(db, &function_ast);
+                    let (rewrite_nodes, implicit_imports, implicit_diagnostics) = handle_implicits(db, function_ast);
                     if let Some(implicit_functions_rewrite) = rewrite_nodes {
                         modified_functions.push(implicit_functions_rewrite);
-                        let mapped_values: Vec<_> = implicit_imports.values().map(|v| v.clone()).collect();
+                        let mapped_values: Vec<_> = implicit_imports.values().cloned().collect();
                         imports.extend(mapped_values);
                     }
                     diagnostics.extend(implicit_diagnostics);
@@ -244,7 +245,7 @@ impl WarpPlugin {
         }
 
 
-        let mut imports_joined_newlines = imports
+        let imports_joined_newlines = imports
             .iter()
             .map(|s| s.to_string())
             .collect::<Vec<String>>()
@@ -276,7 +277,7 @@ impl MacroPlugin for WarpPlugin {
     fn generate_code(&self, db: &dyn SyntaxGroup, item_ast: ast::Item) -> PluginResult {
         match &item_ast {
             ast::Item::FreeFunction(func_ast) => {
-                self.handle_top_level_functions(db, &func_ast)
+                self.handle_functions(db, func_ast)
             }
             ast::Item::Module(module_ast) => self.handle_mod(db, module_ast),
             _ => PluginResult::default(),
@@ -296,7 +297,7 @@ impl AsDynMacroPlugin for WarpPlugin {
 impl SemanticPlugin for WarpPlugin {}
 
 /// Parses a Cairo code string and returns a `HashMap` containing the indices of all functions with an
-/// #[implicit] attribute that match the given implicit function name.
+/// #[implicit] attribute that match the given implicit name.
 ///
 /// # Arguments
 ///
@@ -308,12 +309,12 @@ impl SemanticPlugin for WarpPlugin {}
 /// A `HashMap` containing the indices of all functions with an #[implicit] attribute that match
 /// the given implicit function name.
 ///
-fn get_file_function_indices(code: &String, implicit_name: &str) -> HashMap<String, usize> {
+fn get_file_function_indices(code: &str, implicit_name: &str) -> HashMap<String, usize> {
     let re = Regex::new(&format!(r"#\[implicit\([^\)]*{}[^\)]*\)\]\s*fn\s+([a-zA-Z_][a-zA-Z0-9_]*)", implicit_name)).unwrap();
     let mut function_indices = HashMap::new();
     let mut index = 0;
 
-    for caps in re.captures_iter(code.as_str()) {
+    for caps in re.captures_iter(code) {
         if let Some(function_name) = caps.get(1) {
             function_indices.insert(function_name.as_str().to_string(), index);
             index += 1;
