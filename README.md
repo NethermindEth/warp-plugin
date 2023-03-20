@@ -6,6 +6,7 @@ The compiler will first run the warp plugin, and then the starknet plugin.
 ## Features
 
 ### Warplib
+
 The plugin automatically loads the warplib to the project, provided that the path specified in `Scarb.toml`.
 
 ### Implicits arguments
@@ -23,14 +24,13 @@ mod Module{
 ```
 
 Generates the following code:
+
 ```rust
 mod Module {
     use warplib::memory::WarpMemoryTrait;
 
-    fn read_from_memory(ref warp_memory: DictFelt252To<u128>, index: felt252) {
+    fn read_from_memory(ref warp_memory: Felt252Dict<u128>, index: felt252) {
         warp_memory.read_u128(index);
     }
 }
 ```
-
-

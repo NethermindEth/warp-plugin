@@ -48,11 +48,12 @@ impl Compiler for WarpCompiler {
         let mut config = build_project_config(&unit)?;
         let core_dir = std::env::var("CAIRO_CORELIB_DIR")
             .unwrap_or_else(|e| panic!("Problem getting the corelib path: {e:?}"));
-        config.corelib= Some(Directory(core_dir.into()));
+        config.corelib = Some(Directory(core_dir.into()));
 
         let mut db = RootDatabase::builder()
             .with_project_config(config)
-            .with_warp().build()?;
+            .with_warp()
+            .build()?;
         let compiler_config = build_compiler_config(&unit, ws);
 
         let main_crate_ids = collect_main_crate_ids(&unit, &db);

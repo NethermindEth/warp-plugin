@@ -6,7 +6,7 @@ use cairo_lang_syntax::node::db::SyntaxGroup;
 use smol_str::SmolStr;
 
 const IMPLICIT_ATTR: &str = "implicit";
-const WARPMEMORY_TYPE: &str = "DictFelt252To<u128>";
+const WARPMEMORY_TYPE: &str = "Felt252Dict<u128>";
 const WARPMEMORY_NAME: &str = "warp_memory";
 const WARPMEMORY_IMPORT : &str = "use warplib::memory::WarpMemoryTrait;";
 

@@ -23,7 +23,7 @@ mod Module1 {
         use warplib::memory::WarpMemoryTrait;
 
 
-        fn read_from_memory(ref warp_memory: DictFelt252To<u128>, index: felt252) {
+        fn read_from_memory(ref warp_memory: Felt252Dict<u128>, index: felt252) {
             warp_memory.read_u128(index);
         }
     }
