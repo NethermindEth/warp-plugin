@@ -14,7 +14,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     #[command(
-    about = "Builds the warp output, outputting smart contracts artifacts for deployment"
+        about = "Builds the warp output, outputting smart contracts artifacts for deployment"
     )]
     Build(BuildArgs),
 }

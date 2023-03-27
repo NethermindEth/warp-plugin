@@ -1,18 +1,18 @@
-use std::collections::HashMap;
 use cairo_lang_defs::plugin::PluginDiagnostic;
 use cairo_lang_semantic::patcher::RewriteNode;
-use cairo_lang_syntax::node::{ast, Terminal, TypedSyntaxNode};
 use cairo_lang_syntax::node::db::SyntaxGroup;
+use cairo_lang_syntax::node::{ast, Terminal, TypedSyntaxNode};
 use smol_str::SmolStr;
+use std::collections::HashMap;
 
 const IMPLICIT_ATTR: &str = "implicit";
 const WARPMEMORY_TYPE: &str = "Felt252Dict<u128>";
 const WARPMEMORY_NAME: &str = "warp_memory";
-const WARPMEMORY_IMPORT : &str = "use warplib::memory::WarpMemoryTrait;";
+const WARPMEMORY_IMPORT: &str = "use warplib::memory::WarpMemoryTrait;";
 
 /// Handles the implicits for a Cairo function, returning a tuple containing an optional
-/// `RewriteNode`, a `HashMap` of implicit function names to required import statements, and a vector of any
-/// diagnostic messages.
+/// `RewriteNode`, a `HashMap` of implicit function names to required import statements, and a
+/// vector of any diagnostic messages.
 ///
 /// The function will extract any arguments with an `#[implicit]` attribute and generate import
 /// statements for them. If no arguments are found or if there are any diagnostic messages, the
@@ -32,7 +32,11 @@ const WARPMEMORY_IMPORT : &str = "use warplib::memory::WarpMemoryTrait;";
 pub fn handle_implicits(
     db: &dyn SyntaxGroup,
     function_ast: &ast::FunctionWithBody,
-) -> (Option<RewriteNode>, HashMap<SmolStr,String>, Vec<PluginDiagnostic>) {
+) -> (
+    Option<RewriteNode>,
+    HashMap<SmolStr, String>,
+    Vec<PluginDiagnostic>,
+) {
     let mut diagnostics = vec![];
     let mut arguments = vec![];
     let mut imports = HashMap::new();
@@ -53,9 +57,7 @@ pub fn handle_implicits(
                                     message: "Only warp_memory is supported.".into(),
                                 });
                             }
-                            arguments.push(format!(
-                                "ref {arg_name}: {WARPMEMORY_TYPE}, "
-                            ));
+                            arguments.push(format!("ref {arg_name}: {WARPMEMORY_TYPE}, "));
                             imports.insert(arg_name, WARPMEMORY_IMPORT.into());
                         } else {
                             diagnostics.push(PluginDiagnostic {
@@ -108,13 +110,11 @@ pub fn handle_implicits(
                 ("func_decl".to_string(), func_declaration),
                 (
                     "body".to_string(),
-                    RewriteNode::new_trimmed(
-                        function_ast.body(db).statements(db).as_syntax_node(),
-                    ),
+                    RewriteNode::new_trimmed(function_ast.body(db).statements(db).as_syntax_node()),
                 ),
             ]),
         )),
         imports,
-        diagnostics
+        diagnostics,
     )
 }

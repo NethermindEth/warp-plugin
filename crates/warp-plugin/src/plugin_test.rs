@@ -11,12 +11,12 @@ use cairo_lang_filesystem::ids::{CrateLongId, Directory, FileLongId, VirtualFile
 use cairo_lang_formatter::format_string;
 use cairo_lang_parser::db::ParserGroup;
 
+use crate::db::WarpRootDatabaseBuilderEx;
+use crate::plugin::WarpPlugin;
 use cairo_lang_semantic::test_utils::setup_test_module;
 use cairo_lang_syntax::node::TypedSyntaxNode;
 use cairo_lang_test_utils::parse_test_file::TestFileRunner;
 use cairo_lang_utils::ordered_hash_map::OrderedHashMap;
-use crate::db::WarpRootDatabaseBuilderEx;
-use crate::plugin::WarpPlugin;
 
 struct ExpandContractTestRunner {
     db: RootDatabase,
@@ -50,7 +50,6 @@ impl TestFileRunner for ExpandContractTestRunner {
         let mut item_queue = VecDeque::from(syntax_file.items(&self.db).elements(&self.db));
 
         while let Some(item) = item_queue.pop_front() {
-
             let res = plugin.generate_code(&self.db, item.clone());
 
             if let Some(generated) = res.code {
@@ -61,19 +60,28 @@ impl TestFileRunner for ExpandContractTestRunner {
                 }));
 
                 item_queue.extend(
-                    self.db.file_syntax(new_file).unwrap().items(&self.db).elements(&self.db),
+                    self.db
+                        .file_syntax(new_file)
+                        .unwrap()
+                        .items(&self.db)
+                        .elements(&self.db),
                 );
             }
 
             if !res.remove_original_item {
-                generated_items
-                    .push(format_string(&self.db, item.as_syntax_node().get_text(&self.db)));
+                generated_items.push(format_string(
+                    &self.db,
+                    item.as_syntax_node().get_text(&self.db),
+                ));
             }
         }
 
         OrderedHashMap::from([
             ("generated_cairo_code".into(), generated_items.join("\n")),
-            ("expected_diagnostics".into(), get_diagnostics_as_string(&mut self.db)),
+            (
+                "expected_diagnostics".into(),
+                get_diagnostics_as_string(&mut self.db),
+            ),
         ])
     }
 }
