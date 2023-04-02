@@ -147,37 +147,38 @@ impl WarpPlugin {
     /// indicating whether the original function should be removed.
     ///
     fn handle_functions(&self, db: &dyn SyntaxGroup, func_ast: &FunctionWithBody) -> PluginResult {
-        let (rewrite_nodes, imports, implicit_diagnostics) = handle_implicits(db, func_ast);
+        let (rewrite_nodes, implicit_diagnostics) = handle_implicits(db, func_ast);
         return if let Some(implicit_functions_rewrite) = rewrite_nodes {
             // Traverse the AST until you find the root node (the text file itself), which is the parent of the top-level function.
             //     Convert the syntax node to text to analyze the code.
             //     Search for all functions with the #[implicit] attribute using regex.
             //     Assign a unique ID to each function with the #[implicit] attribute, per parameter.
             //     If a function's ID is 0, add the necessary import(s) in the file.
-            //     For all other functions with non-zero IDs, you can assume the required import(s) are already in the file.
+            //     For all other functions with non-zero IDs, you can assume the required import(s)
+            //     are already in the file.
             //     Because it would have been added by the first function with ID 0.
 
             let func_name = func_ast.declaration(db).name(db).text(db);
-            let parent = func_ast.as_syntax_node().parent().unwrap();
 
+            // let parent = func_ast.as_syntax_node().parent().unwrap();
             // Get the text of the parent syntax node which is the whole file itself.
-            let parent_text = parent.get_text(db);
+            // let parent_text = parent.get_text(db);
 
             // Filter the implicit imports to only those needed for the current function.
-            let added_imports: Vec<String> = imports
-                .iter()
-                .filter(|(implicit_name, _)| {
-                    let function_indices = get_file_function_indices(&parent_text, implicit_name);
-                    return function_indices
-                        .get(func_name.as_str())
-                        .map(|i| *i == 0)
-                        .unwrap_or(false);
-                })
-                .map(|(_, implicit_import)| implicit_import.clone())
-                .collect();
-            let imports_rewrite_node = RewriteNode::Text(added_imports.join("\n"));
+            // let added_imports: Vec<String> = imports
+            //     .iter()
+            //     .filter(|(implicit_name, _)| {
+            //         let function_indices = get_file_function_indices(&parent_text, implicit_name);
+            //         return function_indices
+            //             .get(func_name.as_str())
+            //             .map(|i| *i == 0)
+            //             .unwrap_or(false);
+            //     })
+            //     .map(|(_, implicit_import)| implicit_import.clone())
+            //     .collect();
+            // let imports_rewrite_node = RewriteNode::Text(added_imports.join("\n"));
             let mut builder = PatchBuilder::new(db);
-            builder.add_modified(imports_rewrite_node);
+            // builder.add_modified(imports_rewrite_node);
             builder.add_modified(implicit_functions_rewrite);
             PluginResult {
                 code: Some(PluginGeneratedFile {
@@ -230,16 +231,15 @@ impl WarpPlugin {
         let mut modified_functions = vec![];
         let mut modified_modules = vec![];
         let mut diagnostics = vec![];
-        let mut imports: HashSet<String> = HashSet::new();
+        // let mut imports: HashSet<String> = HashSet::new();
 
         module_body.items(db).elements(db).iter().for_each(|el| {
             if let ast::Item::FreeFunction(function_ast) = el {
-                let (rewrite_nodes, implicit_imports, implicit_diagnostics) =
-                    handle_implicits(db, function_ast);
+                let (rewrite_nodes, implicit_diagnostics) = handle_implicits(db, function_ast);
                 if let Some(implicit_functions_rewrite) = rewrite_nodes {
                     modified_functions.push(implicit_functions_rewrite);
-                    let mapped_values: Vec<_> = implicit_imports.values().cloned().collect();
-                    imports.extend(mapped_values);
+                    // let mapped_values: Vec<_> = implicit_imports.values().cloned().collect();
+                    // imports.extend(mapped_values);
                 }
                 diagnostics.extend(implicit_diagnostics);
             } else if let ast::Item::Module(module_ast) = el {
@@ -263,17 +263,16 @@ impl WarpPlugin {
             return (None, diagnostics);
         }
 
-        let imports_joined_newlines = imports
-            .iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>()
-            .join("\n");
+        // let imports_joined_newlines = imports
+        //     .iter()
+        //     .map(|s| s.to_string())
+        //     .collect::<Vec<String>>()
+        //     .join("\n");
         (
             Some(RewriteNode::interpolate_patched(
                 "
                 $attributes$
                 mod $name$ {
-                    $implicit_imports$
                     $original_items$
                     $modified_functions$
                     $modified_modules$
@@ -284,10 +283,10 @@ impl WarpPlugin {
                         "attributes".to_string(),
                         RewriteNode::new_trimmed(attributes),
                     ),
-                    (
-                        "implicit_imports".to_string(),
-                        RewriteNode::Text(imports_joined_newlines),
-                    ),
+                    // (
+                    //     "implicit_imports".to_string(),
+                    //     RewriteNode::Text(imports_joined_newlines),
+                    // ),
                     ("name".to_string(), RewriteNode::Text(name.to_string())),
                     (
                         "original_items".to_string(),

@@ -2,6 +2,7 @@ use std::vec;
 
 use cairo_lang_syntax::node::ast::{self, Expr, ExprBlock, ExprFunctionCall, Statement};
 use cairo_lang_syntax::node::db::SyntaxGroup;
+use cairo_lang_syntax::node::TypedSyntaxNode;
 
 pub fn handle_function_calls(
     db: &dyn SyntaxGroup,
@@ -37,7 +38,13 @@ fn extract_expressions_from_statements(db: &dyn SyntaxGroup, statement: Statemen
     }
 }
 
+// Try out using syntax node, and using children ??
 fn extract_expressions_from_expression(db: &dyn SyntaxGroup, expression: Expr) -> Vec<Expr> {
+    expression
+        .as_syntax_node()
+        .children(db)
+        .for_each(|x| println!("x"));
+
     let mut all_expr = vec![expression.clone()];
     let nested_exprs = match expression {
         Expr::Block(expr) => vec![extract_expressions_from_expr_block(db, expr)],
