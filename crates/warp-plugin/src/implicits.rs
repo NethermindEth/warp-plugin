@@ -1,6 +1,5 @@
 use cairo_lang_defs::plugin::PluginDiagnostic;
 use cairo_lang_semantic::patcher::RewriteNode;
-use cairo_lang_semantic::ExprFunctionCall;
 use cairo_lang_syntax::node::ast::{FunctionWithBody, ModuleBody};
 use cairo_lang_syntax::node::db::SyntaxGroup;
 use cairo_lang_syntax::node::{ast, Terminal, TypedSyntaxNode};
@@ -14,7 +13,7 @@ const WARPMEMORY_TYPE: &str = "Felt252Dict<u128>";
 const WARPMEMORY_NAME: &str = "warp_memory";
 // const WARPMEMORY_IMPORT: &str = "use warplib::memory::WarpMemoryTrait;";
 
-fn gather_function_with_implicits(
+fn gather_function_with_implicits_old(
     db: &dyn SyntaxGroup,
     module_body: ModuleBody,
 ) -> HashMap<SmolStr, FunctionWithBody> {
@@ -55,7 +54,7 @@ fn handle_everything(db: &dyn SyntaxGroup, module_body: ModuleBody) {
             ast::Item::FreeFunction(f) => Some(f),
             _ => None,
         });
-    let implicit_funcs = gather_function_with_implicits(db, module_body);
+    let implicit_funcs = gather_function_with_implicits_old(db, module_body);
 
     let y: Vec<FunctionWithBody> = implicit_funcs.into_values().map(|x| x).collect();
 }

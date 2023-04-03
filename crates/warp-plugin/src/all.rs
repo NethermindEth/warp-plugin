@@ -22,7 +22,26 @@ type HandlingResult = (RewriteNode, Vec<PluginDiagnostic>);
 type FuncName = SmolStr;
 type Implicits = Vec<String>;
 
-fn handle_module(
+/// Recursively handles the syntax nodes of a Cairo module's items and returns a tuple containing a
+/// `RewriteNode` and any diagnostic messages. The `RewriteNode` represents the modified module,
+/// including any generated code, required implicit imports, and original items. If no modifications are
+/// made, `None` is returned.
+///
+/// This function is recursive and will call itself for any nested modules in the module body.
+///
+/// # Arguments
+///
+/// * `self` - A reference to the current instance of the plugin.
+/// * `db` - A reference to a `SyntaxGroup` trait object that contains the module's syntax tree.
+/// * `module_body` - The `ModuleBody` representing the module's items.
+/// * `name` - The name of the module as a `SmolStr`.
+/// * `attributes` - The syntax node representing any attributes associated with the module.
+///
+/// # Returns
+///
+/// A tuple containing a `RewriteNode` representing the modified module, and any diagnostic messages.
+///
+pub fn handle_module(
     db: &dyn SyntaxGroup,
     module_body: ModuleBody,
     name: SmolStr,
@@ -39,7 +58,7 @@ fn handle_module(
         .items(db)
         .elements(db)
         .into_iter()
-        .foreach(|item| match item {
+        .for_each(|item| match item {
             ast::Item::FreeFunction(function_body) => {
                 let (rewritten_function, item_diagnostic) =
                     handle_function(db, &function_with_implicits, function_body);
@@ -95,7 +114,7 @@ fn handle_module(
     )
 }
 
-fn handle_function(
+pub fn handle_function(
     db: &dyn SyntaxGroup,
     function_with_implicits: &HashMap<FuncName, Implicits>,
     function_body: FunctionWithBody,
@@ -130,7 +149,7 @@ fn handle_function_declaration(
         .elements(db)
         .into_iter()
         .find(|attr| attr.attr(db).text(db) == IMPLICIT_ATTR);
-    if (implicit_attr == None) {
+    if implicit_attr == None {
         return (RewriteNode::from_ast(&func_body.declaration(db)), vec![]);
     }
     let implicit_attr = implicit_attr.unwrap();
