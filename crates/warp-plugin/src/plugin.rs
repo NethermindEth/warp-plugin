@@ -20,7 +20,7 @@ use regex::Regex;
 
 use smol_str::SmolStr;
 
-use crate::all::{handle_function, handle_module};
+use crate::all::{handle_function, handle_module, MaybeRewritten};
 use crate::implicits::handle_implicits;
 
 /// Warp related auxiliary data of the Warp plugin.
@@ -100,9 +100,9 @@ impl WarpPlugin {
         let module_name = module_ast.name(db).text(db);
         if let MaybeModuleBody::Some(module_body) = module_ast.body(db) {
             let attributes = module_ast.attributes(db).as_syntax_node();
-            let (module_rewritten, diagnostics) =
+            let (maybe_module_rewritten, diagnostics) =
                 handle_module(db, module_body, module_name.clone(), attributes);
-            return if diagnostics.len() == 0 {
+            return if let MaybeRewritten::Some(module_rewritten) = maybe_module_rewritten {
                 let mut builder = PatchBuilder::new(db);
                 builder.add_modified(module_rewritten);
                 PluginResult {
@@ -149,12 +149,12 @@ impl WarpPlugin {
     ///
     fn handle_functions(&self, db: &dyn SyntaxGroup, func_ast: &FunctionWithBody) -> PluginResult {
         // TODO(Performance): Avoid this clone
-        let (rewrite_nodes, implicit_diagnostics) =
+        let (maybe_rewriten_func, implicit_diagnostics) =
             handle_function(db, &HashMap::new(), func_ast.clone());
-        return if implicit_diagnostics.len() == 0 {
+        return if let MaybeRewritten::Some(rewritten_func) = maybe_rewriten_func {
             let func_name = func_ast.declaration(db).name(db).text(db);
             let mut builder = PatchBuilder::new(db);
-            builder.add_modified(rewrite_nodes);
+            builder.add_modified(rewritten_func);
             PluginResult {
                 code: Some(PluginGeneratedFile {
                     name: func_name.clone(),
@@ -179,6 +179,7 @@ impl WarpPlugin {
 
 impl MacroPlugin for WarpPlugin {
     fn generate_code(&self, db: &dyn SyntaxGroup, item_ast: ast::Item) -> PluginResult {
+        dbg!("First of firsts");
         match &item_ast {
             ast::Item::FreeFunction(func_ast) => self.handle_functions(db, func_ast),
             ast::Item::Module(module_ast) => self.handle_mod(db, module_ast),
