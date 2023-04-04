@@ -35,8 +35,8 @@ impl MaybeRewritten {
     pub fn not_rewritten(&self) -> bool {
         matches!(self, MaybeRewritten::None(_))
     }
-    pub fn unwrap(&self) -> RewriteNode {
-        match *self {
+    pub fn unwrap(self) -> RewriteNode {
+        match self {
             MaybeRewritten::Some(n) => n,
             MaybeRewritten::None(n) => n,
         }
@@ -110,6 +110,13 @@ pub fn handle_module(
             _ => kept_original_items.push(RewriteNode::Copied(item.as_syntax_node())),
         });
 
+    if diagnostics.len() > 0 || modified_modules.len() + modified_functions.len() == 0 {
+        return (
+            MaybeRewritten::None(RewriteNode::from_ast(&module_body)),
+            diagnostics,
+        );
+    }
+
     let rewritten_module = RewriteNode::interpolate_patched(
         "
                 $attributes$
@@ -139,11 +146,7 @@ pub fn handle_module(
             ),
         ]),
     );
-    if diagnostics.len() > 0 || modified_modules.len() + modified_functions.len() == 0 {
-        (MaybeRewritten::None(rewritten_module), diagnostics)
-    } else {
-        (MaybeRewritten::Some(rewritten_module), diagnostics)
-    }
+    (MaybeRewritten::Some(rewritten_module), diagnostics)
 }
 
 pub fn handle_function(
@@ -279,7 +282,7 @@ fn handle_expression_blocks(
         if statement_diagnostics.len() > 0 {
             diagnostics.extend(statement_diagnostics);
         }
-        let should_rewrite = should_rewrite || rewrite_statement.rewritten();
+        should_rewrite = should_rewrite || rewrite_statement.rewritten();
         let statement_key = format!("{STATEMENT}_{index}");
         rewrite_body.insert(statement_key, rewrite_statement.unwrap());
     }
@@ -309,13 +312,14 @@ fn handle_statement(
         Statement::Expr(stmnt) => {
             let (rewritten_expr, diagnostics) =
                 handle_expression(db, function_with_implicits, stmnt.expr(db));
+            let should_rewrite = rewritten_expr.rewritten();
 
             let rewritten_stmnt = RewriteNode::interpolate_patched(
                 "$expr$;",
                 HashMap::from([("expr".to_string(), rewritten_expr.unwrap())]),
             );
 
-            let maybe_rewritten = if rewritten_expr.rewritten() {
+            let maybe_rewritten = if should_rewrite {
                 MaybeRewritten::Some(rewritten_stmnt)
             } else {
                 MaybeRewritten::None(rewritten_stmnt)
@@ -326,12 +330,13 @@ fn handle_statement(
         Statement::Let(stmnt) => {
             let (rewritten_expr, diagnostics) =
                 handle_expression(db, function_with_implicits, stmnt.rhs(db));
+            let should_rewrite = rewritten_expr.rewritten();
 
             let mut rewritten_stmnt = RewriteNode::from_ast(&stmnt);
             let children = rewritten_stmnt.modify(db).children.as_mut().unwrap();
             children[ast::StatementLet::INDEX_RHS] = rewritten_expr.unwrap();
 
-            let maybe_rewritten = if rewritten_expr.rewritten() {
+            let maybe_rewritten = if should_rewrite {
                 MaybeRewritten::Some(rewritten_stmnt)
             } else {
                 MaybeRewritten::None(rewritten_stmnt)
@@ -342,13 +347,14 @@ fn handle_statement(
         Statement::Return(stmnt) => {
             let (rewritten_expr, diagnostics) =
                 handle_expression(db, function_with_implicits, stmnt.expr(db));
+            let should_rewrite = rewritten_expr.rewritten();
 
             let rewritten_stmnt = RewriteNode::interpolate_patched(
                 "return $expr$;",
                 HashMap::from([("expr".to_string(), rewritten_expr.unwrap())]),
             );
 
-            let maybe_rewritten = if rewritten_expr.rewritten() {
+            let maybe_rewritten = if should_rewrite {
                 MaybeRewritten::Some(rewritten_stmnt)
             } else {
                 MaybeRewritten::None(rewritten_stmnt)
@@ -385,9 +391,9 @@ fn handle_expression(
                 let (maybe_rewritten_call, func_call_diagnostics) =
                     handle_expression(db, function_with_implicits, Expr::FunctionCall(func_call));
 
-                let (mut rewritten_call, mut was_rewritten) = (
-                    maybe_rewritten_call.unwrap(),
+                let (mut was_rewritten, mut rewritten_call) = (
                     maybe_rewritten_call.rewritten(),
+                    maybe_rewritten_call.unwrap(),
                 );
 
                 if let Some(custom_implicits) = function_with_implicits.get(&func_name) {
@@ -409,7 +415,7 @@ fn handle_expression(
                 } else {
                     MaybeRewritten::None(rewritten_call)
                 };
-                (maybe_rewritten_call, func_call_diagnostics)
+                (maybe_rewritten, func_call_diagnostics)
             }
             _ => handle_expression(db, function_with_implicits, expr),
         };
