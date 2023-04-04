@@ -18,9 +18,30 @@ const IMPLICIT_ATTR: &str = "implicit";
 const WARPMEMORY_NAME: &str = "warp_memory";
 const WARPMEMORY_TYPE: &str = "Felt252Dict<u128>";
 
-type HandlingResult = (RewriteNode, Vec<PluginDiagnostic>);
+type HandlingResult = (MaybeRewritten, Vec<PluginDiagnostic>);
 type FuncName = SmolStr;
 type Implicits = Vec<String>;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MaybeRewritten {
+    Some(RewriteNode),
+    None(RewriteNode),
+}
+
+impl MaybeRewritten {
+    pub fn rewritten(&self) -> bool {
+        matches!(self, MaybeRewritten::Some(_))
+    }
+    pub fn not_rewritten(&self) -> bool {
+        matches!(self, MaybeRewritten::None(_))
+    }
+    pub fn unwrap(&self) -> RewriteNode {
+        match *self {
+            MaybeRewritten::Some(n) => n,
+            MaybeRewritten::None(n) => n,
+        }
+    }
+}
 
 /// Recursively handles the syntax nodes of a Cairo module's items and returns a tuple containing a
 /// `RewriteNode` and any diagnostic messages. The `RewriteNode` represents the modified module,
@@ -62,7 +83,12 @@ pub fn handle_module(
             ast::Item::FreeFunction(function_body) => {
                 let (rewritten_function, item_diagnostic) =
                     handle_function(db, &function_with_implicits, function_body);
-                modified_functions.push(rewritten_function);
+
+                if rewritten_function.rewritten() {
+                    modified_functions.push(rewritten_function.unwrap());
+                } else {
+                    kept_original_items.push(rewritten_function.unwrap());
+                }
                 diagnostics.extend(item_diagnostic);
             }
             ast::Item::Module(child_module) => {
@@ -71,7 +97,11 @@ pub fn handle_module(
                 if let MaybeModuleBody::Some(body) = child_module.body(db) {
                     let (rewritten_module, item_diagnostic) =
                         handle_module(db, body, name, attributes);
-                    modified_modules.push(rewritten_module);
+                    if rewritten_module.rewritten() {
+                        modified_modules.push(rewritten_module.unwrap());
+                    } else {
+                        kept_original_items.push(rewritten_module.unwrap());
+                    }
                     diagnostics.extend(item_diagnostic);
                 } else {
                     kept_original_items.push(RewriteNode::Copied(child_module.as_syntax_node()));
@@ -80,9 +110,8 @@ pub fn handle_module(
             _ => kept_original_items.push(RewriteNode::Copied(item.as_syntax_node())),
         });
 
-    (
-        RewriteNode::interpolate_patched(
-            "
+    let rewritten_module = RewriteNode::interpolate_patched(
+        "
                 $attributes$
                 mod $name$ {
                     $original_items$
@@ -90,28 +119,31 @@ pub fn handle_module(
                     $modified_modules$
                 }
                 ",
-            HashMap::from([
-                (
-                    "attributes".to_string(),
-                    RewriteNode::new_trimmed(attributes),
-                ),
-                ("name".to_string(), RewriteNode::Text(name.to_string())),
-                (
-                    "original_items".to_string(),
-                    RewriteNode::new_modified(kept_original_items),
-                ),
-                (
-                    "modified_functions".to_string(),
-                    RewriteNode::new_modified(modified_functions),
-                ),
-                (
-                    "modified_modules".to_string(),
-                    RewriteNode::new_modified(modified_modules),
-                ),
-            ]),
-        ),
-        diagnostics,
-    )
+        HashMap::from([
+            (
+                "attributes".to_string(),
+                RewriteNode::new_trimmed(attributes),
+            ),
+            ("name".to_string(), RewriteNode::Text(name.to_string())),
+            (
+                "original_items".to_string(),
+                RewriteNode::new_modified(kept_original_items),
+            ),
+            (
+                "modified_functions".to_string(),
+                RewriteNode::new_modified(modified_functions),
+            ),
+            (
+                "modified_modules".to_string(),
+                RewriteNode::new_modified(modified_modules),
+            ),
+        ]),
+    );
+    if diagnostics.len() > 0 || modified_modules.len() + modified_functions.len() == 0 {
+        (MaybeRewritten::None(rewritten_module), diagnostics)
+    } else {
+        (MaybeRewritten::Some(rewritten_module), diagnostics)
+    }
 }
 
 pub fn handle_function(
@@ -119,25 +151,38 @@ pub fn handle_function(
     function_with_implicits: &HashMap<FuncName, Implicits>,
     function_body: FunctionWithBody,
 ) -> HandlingResult {
+    let func_name = function_body.declaration(db).name(db).text(db);
+    dbg!(format!("Vising function {func_name}"));
+
     let (rewritten_expr_bloc, expr_block_diagnostics) =
         handle_expression_blocks(db, function_with_implicits, function_body.body(db));
 
     let (rewritten_declaration, declaration_diagnostics) =
         handle_function_declaration(db, &function_body);
 
+    let mut func_diagnostics = expr_block_diagnostics;
+    func_diagnostics.extend(declaration_diagnostics);
+
+    if (rewritten_expr_bloc.not_rewritten() && rewritten_declaration.not_rewritten())
+        || func_diagnostics.len() > 0
+    {
+        return (
+            MaybeRewritten::None(RewriteNode::Copied(function_body.as_syntax_node())),
+            func_diagnostics,
+        );
+    }
+
     let rewritten_function = RewriteNode::interpolate_patched(
         "$func_decl$ {
             $body$
         }",
         HashMap::from([
-            ("func_decl".to_string(), rewritten_declaration),
-            ("body".to_string(), rewritten_expr_bloc),
+            ("func_decl".to_string(), rewritten_declaration.unwrap()),
+            ("body".to_string(), rewritten_expr_bloc.unwrap()),
         ]),
     );
-    let mut func_diagnostics = expr_block_diagnostics;
-    func_diagnostics.extend(declaration_diagnostics);
 
-    (rewritten_function, func_diagnostics)
+    (MaybeRewritten::Some(rewritten_function), func_diagnostics)
 }
 
 fn handle_function_declaration(
@@ -150,10 +195,13 @@ fn handle_function_declaration(
         .into_iter()
         .find(|attr| attr.attr(db).text(db) == IMPLICIT_ATTR);
     if implicit_attr == None {
-        return (RewriteNode::from_ast(&func_body.declaration(db)), vec![]);
+        return (
+            MaybeRewritten::None(RewriteNode::from_ast(&func_body.declaration(db))),
+            vec![],
+        );
     }
-    let implicit_attr = implicit_attr.unwrap();
 
+    let implicit_attr = implicit_attr.unwrap();
     let mut diagnostics: Vec<PluginDiagnostic> = vec![];
     let mut parameters: Vec<String> = vec![];
     if let ast::OptionAttributeArgs::AttributeArgs(args) = implicit_attr.args(db) {
@@ -191,7 +239,7 @@ fn handle_function_declaration(
 
     if !diagnostics.is_empty() || parameters.is_empty() {
         return (
-            RewriteNode::from_ast(&func_body.declaration(db)),
+            MaybeRewritten::None(RewriteNode::from_ast(&func_body.declaration(db))),
             diagnostics,
         );
     }
@@ -206,7 +254,7 @@ fn handle_function_declaration(
         .unwrap()
         .insert(0, RewriteNode::Text(parameters.join("")));
 
-    (func_declaration, diagnostics)
+    (MaybeRewritten::Some(func_declaration), diagnostics)
 }
 
 fn handle_expression_blocks(
@@ -216,27 +264,40 @@ fn handle_expression_blocks(
 ) -> HandlingResult {
     let mut diagnostics: Vec<PluginDiagnostic> = vec![];
     let mut rewrite_body: HashMap<String, RewriteNode> = HashMap::new();
+    let mut should_rewrite = false;
 
     // Rewrite each statment of the expression block
-    let mut index = 0;
-    for statement in expr_block.statements(db).elements(db) {
+    for (index, statement) in expr_block
+        .statements(db)
+        .elements(db)
+        .into_iter()
+        .enumerate()
+    {
         let (rewrite_statement, statement_diagnostics) =
             handle_statement(db, function_with_implicits, statement);
 
         if statement_diagnostics.len() > 0 {
             diagnostics.extend(statement_diagnostics);
         }
-
+        let should_rewrite = should_rewrite || rewrite_statement.rewritten();
         let statement_key = format!("{STATEMENT}_{index}");
-        rewrite_body.insert(statement_key, rewrite_statement);
-        index += 1;
+        rewrite_body.insert(statement_key, rewrite_statement.unwrap());
+    }
+
+    if !should_rewrite || diagnostics.len() > 0 {
+        return (
+            MaybeRewritten::None(RewriteNode::from_ast(&expr_block)),
+            diagnostics,
+        );
     }
 
     // Rewrite the expression block
-    let expr_block_str = (0..index).map(|i| format!("${STATEMENT}_{i}$")).join("\n");
+    let expr_block_str = (0..rewrite_body.len())
+        .map(|i| format!("${STATEMENT}_{i}$"))
+        .join("\n");
     let expr_bloc_rewrriten = RewriteNode::interpolate_patched(&expr_block_str, rewrite_body);
 
-    (expr_bloc_rewrriten, diagnostics)
+    (MaybeRewritten::Some(expr_bloc_rewrriten), diagnostics)
 }
 
 fn handle_statement(
@@ -248,13 +309,19 @@ fn handle_statement(
         Statement::Expr(stmnt) => {
             let (rewritten_expr, diagnostics) =
                 handle_expression(db, function_with_implicits, stmnt.expr(db));
-            (
-                RewriteNode::interpolate_patched(
-                    "$expr$;",
-                    HashMap::from([("expr".to_string(), rewritten_expr)]),
-                ),
-                diagnostics,
-            )
+
+            let rewritten_stmnt = RewriteNode::interpolate_patched(
+                "$expr$;",
+                HashMap::from([("expr".to_string(), rewritten_expr.unwrap())]),
+            );
+
+            let maybe_rewritten = if rewritten_expr.rewritten() {
+                MaybeRewritten::Some(rewritten_stmnt)
+            } else {
+                MaybeRewritten::None(rewritten_stmnt)
+            };
+
+            (maybe_rewritten, diagnostics)
         }
         Statement::Let(stmnt) => {
             let (rewritten_expr, diagnostics) =
@@ -262,20 +329,31 @@ fn handle_statement(
 
             let mut rewritten_stmnt = RewriteNode::from_ast(&stmnt);
             let children = rewritten_stmnt.modify(db).children.as_mut().unwrap();
-            children[ast::StatementLet::INDEX_RHS] = rewritten_expr;
-            (rewritten_stmnt, diagnostics)
+            children[ast::StatementLet::INDEX_RHS] = rewritten_expr.unwrap();
+
+            let maybe_rewritten = if rewritten_expr.rewritten() {
+                MaybeRewritten::Some(rewritten_stmnt)
+            } else {
+                MaybeRewritten::None(rewritten_stmnt)
+            };
+            (maybe_rewritten, diagnostics)
         }
         Statement::Missing(_stmnt) => todo!(),
         Statement::Return(stmnt) => {
             let (rewritten_expr, diagnostics) =
                 handle_expression(db, function_with_implicits, stmnt.expr(db));
-            (
-                RewriteNode::interpolate_patched(
-                    "return $expr$;",
-                    HashMap::from([("expr".to_string(), rewritten_expr)]),
-                ),
-                diagnostics,
-            )
+
+            let rewritten_stmnt = RewriteNode::interpolate_patched(
+                "return $expr$;",
+                HashMap::from([("expr".to_string(), rewritten_expr.unwrap())]),
+            );
+
+            let maybe_rewritten = if rewritten_expr.rewritten() {
+                MaybeRewritten::Some(rewritten_stmnt)
+            } else {
+                MaybeRewritten::None(rewritten_stmnt)
+            };
+            (maybe_rewritten, diagnostics)
         }
     }
 }
@@ -289,6 +367,7 @@ fn handle_expression(
 
     let mut chidlren_to_modify: Vec<(usize, RewriteNode)> = vec![];
     let mut diagnostics: Vec<PluginDiagnostic> = vec![];
+    let mut should_rewrite = false;
 
     for (index, child) in children.enumerate() {
         if !child.kind(db).is_expression() {
@@ -303,8 +382,14 @@ fn handle_expression(
             Expr::FunctionCall(func_call) => {
                 let func_name = get_func_call_name(db, &func_call);
 
-                let (mut rewritten_call, func_call_diagnostics) =
+                let (maybe_rewritten_call, func_call_diagnostics) =
                     handle_expression(db, function_with_implicits, Expr::FunctionCall(func_call));
+
+                let (mut rewritten_call, mut was_rewritten) = (
+                    maybe_rewritten_call.unwrap(),
+                    maybe_rewritten_call.rewritten(),
+                );
+
                 if let Some(custom_implicits) = function_with_implicits.get(&func_name) {
                     let arg_children = rewritten_call
                         .modify_child(db, ExprFunctionCall::INDEX_ARGUMENTS)
@@ -314,16 +399,31 @@ fn handle_expression(
                         .as_mut()
                         .unwrap();
                     for implicit in custom_implicits.iter().rev() {
-                        arg_children.insert(0, RewriteNode::Text(implicit.clone()));
+                        arg_children.insert(0, RewriteNode::Text(format!("ref {implicit}")));
                     }
+                    was_rewritten = true;
                 }
-                (rewritten_call, func_call_diagnostics)
+
+                let maybe_rewritten = if was_rewritten || func_call_diagnostics.len() == 0 {
+                    MaybeRewritten::Some(rewritten_call)
+                } else {
+                    MaybeRewritten::None(rewritten_call)
+                };
+                (maybe_rewritten_call, func_call_diagnostics)
             }
             _ => handle_expression(db, function_with_implicits, expr),
         };
 
+        should_rewrite = rewritten_child.rewritten();
         diagnostics.extend(child_diagnostic);
-        chidlren_to_modify.push((index, rewritten_child));
+        chidlren_to_modify.push((index, rewritten_child.unwrap()));
+    }
+
+    if !should_rewrite || diagnostics.len() > 0 {
+        return (
+            MaybeRewritten::None(RewriteNode::from_ast(&expression)),
+            diagnostics,
+        );
     }
 
     let mut rewritten_expression = RewriteNode::from_ast(&expression);
@@ -331,8 +431,7 @@ fn handle_expression(
     for (index, child_to_rewrite) in chidlren_to_modify {
         children_to_rewrite[index] = child_to_rewrite;
     }
-
-    return (rewritten_expression, diagnostics);
+    (MaybeRewritten::Some(rewritten_expression), diagnostics)
 }
 
 fn gather_function_with_implicits(
