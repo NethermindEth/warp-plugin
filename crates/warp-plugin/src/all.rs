@@ -1,8 +1,9 @@
 use cairo_lang_defs::plugin::PluginDiagnostic;
+use cairo_lang_semantic::items::imp;
 use cairo_lang_semantic::patcher::RewriteNode;
 use cairo_lang_syntax::node::ast::{
     ArgListParenthesized, Expr, ExprBlock, ExprFunctionCall, FunctionDeclaration,
-    FunctionSignature, FunctionWithBody, MaybeModuleBody, ModuleBody, Statement,
+    FunctionSignature, FunctionWithBody, MaybeModuleBody, ModuleBody, PathSegment, Statement,
 };
 use cairo_lang_syntax::node::SyntaxNode;
 use cairo_lang_syntax::node::{ast, db::SyntaxGroup, Terminal, TypedSyntaxNode};
@@ -20,7 +21,12 @@ const WARPMEMORY_TYPE: &str = "Felt252Dict<u128>";
 
 type HandlingResult = (MaybeRewritten, Vec<PluginDiagnostic>);
 type FuncName = SmolStr;
-type Implicits = Vec<String>;
+type Implicits = Vec<SmolStr>;
+
+struct ImplicitInfo {
+    name: SmolStr,
+    typex: SmolStr,
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MaybeRewritten {
@@ -74,6 +80,10 @@ pub fn handle_module(
     let mut diagnostics = vec![];
 
     let function_with_implicits = gather_function_with_implicits(db, &module_body);
+    if function_with_implicits.len() > 0 {
+        dbg!("Inside module");
+        dbg!(&function_with_implicits);
+    }
 
     module_body
         .items(db)
@@ -110,6 +120,10 @@ pub fn handle_module(
             _ => kept_original_items.push(RewriteNode::Copied(item.as_syntax_node())),
         });
 
+    if function_with_implicits.len() > 0 {
+        dbg!("Exiting module");
+        dbg!(&function_with_implicits);
+    }
     if diagnostics.len() > 0 || modified_modules.len() + modified_functions.len() == 0 {
         return (
             MaybeRewritten::None(RewriteNode::from_ast(&module_body)),
@@ -154,8 +168,10 @@ pub fn handle_function(
     function_with_implicits: &HashMap<FuncName, Implicits>,
     function_body: FunctionWithBody,
 ) -> HandlingResult {
-    let func_name = function_body.declaration(db).name(db).text(db);
-    dbg!(format!("Vising function {func_name}"));
+    if function_with_implicits.len() > 0 {
+        let func_name = function_body.declaration(db).name(db).text(db);
+        dbg!(format!("Vising function {func_name}"));
+    }
 
     let (rewritten_expr_bloc, expr_block_diagnostics) =
         handle_expression_blocks(db, function_with_implicits, function_body.body(db));
@@ -166,9 +182,12 @@ pub fn handle_function(
     let mut func_diagnostics = expr_block_diagnostics;
     func_diagnostics.extend(declaration_diagnostics);
 
-    if (rewritten_expr_bloc.not_rewritten() && rewritten_declaration.not_rewritten())
-        || func_diagnostics.len() > 0
-    {
+    if function_with_implicits.len() > 0 {
+        let func_name = function_body.declaration(db).name(db).text(db);
+        dbg!(format!("Exiting function {func_name}"));
+    }
+
+    if rewritten_expr_bloc.not_rewritten() && rewritten_declaration.not_rewritten() {
         return (
             MaybeRewritten::None(RewriteNode::Copied(function_body.as_syntax_node())),
             func_diagnostics,
@@ -176,9 +195,9 @@ pub fn handle_function(
     }
 
     let rewritten_function = RewriteNode::interpolate_patched(
-        "$func_decl$ {
+        "$func_decl$ 
             $body$
-        }",
+        ",
         HashMap::from([
             ("func_decl".to_string(), rewritten_declaration.unwrap()),
             ("body".to_string(), rewritten_expr_bloc.unwrap()),
@@ -192,72 +211,36 @@ fn handle_function_declaration(
     db: &dyn SyntaxGroup,
     func_body: &FunctionWithBody,
 ) -> HandlingResult {
-    let implicit_attr = func_body
-        .attributes(db)
-        .elements(db)
-        .into_iter()
-        .find(|attr| attr.attr(db).text(db) == IMPLICIT_ATTR);
-    if implicit_attr == None {
-        return (
-            MaybeRewritten::None(RewriteNode::from_ast(&func_body.declaration(db))),
-            vec![],
-        );
-    }
-
-    let implicit_attr = implicit_attr.unwrap();
-    let mut diagnostics: Vec<PluginDiagnostic> = vec![];
-    let mut parameters: Vec<String> = vec![];
-    if let ast::OptionAttributeArgs::AttributeArgs(args) = implicit_attr.args(db) {
-        for arg in args.arg_list(db).elements(db) {
-            if let ast::Expr::Path(expr) = arg {
-                if let [ast::PathSegment::Simple(segment)] = &expr.elements(db)[..] {
-                    let arg_name = segment.ident(db).text(db);
-                    if arg_name != WARPMEMORY_NAME {
-                        diagnostics.push(PluginDiagnostic {
-                            stable_ptr: expr.stable_ptr().untyped(),
-                            message: "Only warp_memory is supported.".into(),
-                        });
-                        continue;
-                    }
-                    parameters.push(format!("ref {arg_name}: {WARPMEMORY_TYPE}, "));
-                } else {
-                    diagnostics.push(PluginDiagnostic {
-                        stable_ptr: expr.stable_ptr().untyped(),
-                        message: "Expected a single segment.".into(),
-                    });
-                }
-            } else {
-                diagnostics.push(PluginDiagnostic {
-                    stable_ptr: arg.stable_ptr().untyped(),
-                    message: "Expected path.".into(),
-                });
-            }
+    match extract_implicit_attributes(db, &func_body) {
+        Ok(Some(implicits)) => {
+            let mut func_declaration = RewriteNode::from_ast(&func_body.declaration(db));
+            func_declaration
+                .modify_child(db, FunctionDeclaration::INDEX_SIGNATURE)
+                .modify_child(db, FunctionSignature::INDEX_PARAMETERS)
+                .modify(db)
+                .children
+                .as_mut()
+                .unwrap()
+                .insert(
+                    0,
+                    RewriteNode::Text(
+                        implicits
+                            .into_iter()
+                            .map(|ii| format!("ref {0}: {1},", ii.name, ii.typex))
+                            .join(""),
+                    ),
+                );
+            (MaybeRewritten::Some(func_declaration), vec![])
         }
-    } else {
-        diagnostics.push(PluginDiagnostic {
-            stable_ptr: implicit_attr.stable_ptr().untyped(),
-            message: "Expected arguments.".into(),
-        });
-    }
-
-    if !diagnostics.is_empty() || parameters.is_empty() {
-        return (
+        Err(diagnostics) => (
             MaybeRewritten::None(RewriteNode::from_ast(&func_body.declaration(db))),
             diagnostics,
-        );
+        ),
+        _ => (
+            MaybeRewritten::None(RewriteNode::from_ast(&func_body.declaration(db))),
+            vec![],
+        ),
     }
-
-    let mut func_declaration = RewriteNode::from_ast(&func_body.declaration(db));
-    func_declaration
-        .modify_child(db, FunctionDeclaration::INDEX_SIGNATURE)
-        .modify_child(db, FunctionSignature::INDEX_PARAMETERS)
-        .modify(db)
-        .children
-        .as_mut()
-        .unwrap()
-        .insert(0, RewriteNode::Text(parameters.join("")));
-
-    (MaybeRewritten::Some(func_declaration), diagnostics)
 }
 
 fn handle_expression_blocks(
@@ -298,6 +281,7 @@ fn handle_expression_blocks(
     let expr_block_str = (0..rewrite_body.len())
         .map(|i| format!("${STATEMENT}_{i}$"))
         .join("\n");
+    let expr_block_str = format!("{{{expr_block_str}}}");
     let expr_bloc_rewrriten = RewriteNode::interpolate_patched(&expr_block_str, rewrite_body);
 
     (MaybeRewritten::Some(expr_bloc_rewrriten), diagnostics)
@@ -369,75 +353,102 @@ fn handle_expression(
     function_with_implicits: &HashMap<FuncName, Implicits>,
     expression: Expr,
 ) -> HandlingResult {
+    match expression {
+        Expr::Block(expr_block) => {
+            handle_expression_blocks(db, function_with_implicits, expr_block)
+        }
+        Expr::FunctionCall(func_call) => {
+            handle_function_call(db, function_with_implicits, func_call)
+        }
+        _ => generic_expression_rewrite(db, function_with_implicits, &expression),
+    }
+}
+
+fn handle_function_call(
+    db: &dyn SyntaxGroup,
+    function_with_implicits: &HashMap<FuncName, Implicits>,
+    func_call: ExprFunctionCall,
+) -> HandlingResult {
+    let (maybe_rewritten, diagnostics) =
+        generic_expression_rewrite(db, function_with_implicits, &func_call);
+
+    if (diagnostics.len() > 0) {
+        return (maybe_rewritten, diagnostics);
+    }
+
+    let (mut should_rewrite, mut rewritten_call) =
+        (maybe_rewritten.rewritten(), maybe_rewritten.unwrap());
+
+    let func_name = get_func_call_name(db, &func_call);
+    if let Some(custom_implicits) = function_with_implicits.get(&func_name) {
+        let arg_children = rewritten_call
+            .modify_child(db, ExprFunctionCall::INDEX_ARGUMENTS)
+            .modify_child(db, ArgListParenthesized::INDEX_ARGS)
+            .modify(db)
+            .children
+            .as_mut()
+            .unwrap();
+        for implicit in custom_implicits.iter().rev() {
+            arg_children.insert(0, RewriteNode::Text(format!("ref {implicit}, ")));
+        }
+        should_rewrite = true;
+    }
+
+    let maybe_rewritten = if should_rewrite {
+        MaybeRewritten::Some(rewritten_call)
+    } else {
+        MaybeRewritten::None(rewritten_call)
+    };
+    (maybe_rewritten, diagnostics)
+}
+
+fn generic_expression_rewrite<T: TypedSyntaxNode>(
+    db: &dyn SyntaxGroup,
+    function_with_implicits: &HashMap<FuncName, Implicits>,
+    expression: &T,
+) -> HandlingResult {
+    let (children_to_rewrite, diagnostics) =
+        rewrite_children_expressions(db, function_with_implicits, expression);
+    let should_rewrite = children_to_rewrite
+        .iter()
+        .any(|(_, child)| matches!(child, MaybeRewritten::Some(_)));
+
+    if (!should_rewrite || diagnostics.len() > 0) {
+        return (
+            MaybeRewritten::None(RewriteNode::from_ast(expression)),
+            diagnostics,
+        );
+    }
+    let mut rewritten_expression = RewriteNode::from_ast(expression);
+    let rewritten_expr_children = rewritten_expression.modify(db).children.as_mut().unwrap();
+    for (index, child_to_rewrite) in children_to_rewrite {
+        rewritten_expr_children[index] = child_to_rewrite.unwrap();
+    }
+    (MaybeRewritten::Some(rewritten_expression), diagnostics)
+}
+
+fn rewrite_children_expressions<T: TypedSyntaxNode>(
+    db: &dyn SyntaxGroup,
+    function_with_implicits: &HashMap<FuncName, Implicits>,
+    expression: &T,
+) -> (Vec<(usize, MaybeRewritten)>, Vec<PluginDiagnostic>) {
     let children = expression.as_syntax_node().children(db);
 
-    let mut chidlren_to_modify: Vec<(usize, RewriteNode)> = vec![];
+    let mut chidlren_to_modify: Vec<(usize, MaybeRewritten)> = vec![];
     let mut diagnostics: Vec<PluginDiagnostic> = vec![];
-    let mut should_rewrite = false;
 
     for (index, child) in children.enumerate() {
         if !child.kind(db).is_expression() {
             continue;
         }
         let expr = Expr::from_syntax_node(db, child);
+        let (rewritten_child, child_diagnostic) =
+            handle_expression(db, function_with_implicits, expr);
 
-        let (rewritten_child, child_diagnostic) = match expr {
-            Expr::Block(block_expr) => {
-                handle_expression_blocks(db, function_with_implicits, block_expr)
-            }
-            Expr::FunctionCall(func_call) => {
-                let func_name = get_func_call_name(db, &func_call);
-
-                let (maybe_rewritten_call, func_call_diagnostics) =
-                    handle_expression(db, function_with_implicits, Expr::FunctionCall(func_call));
-
-                let (mut was_rewritten, mut rewritten_call) = (
-                    maybe_rewritten_call.rewritten(),
-                    maybe_rewritten_call.unwrap(),
-                );
-
-                if let Some(custom_implicits) = function_with_implicits.get(&func_name) {
-                    let arg_children = rewritten_call
-                        .modify_child(db, ExprFunctionCall::INDEX_ARGUMENTS)
-                        .modify_child(db, ArgListParenthesized::INDEX_ARGS)
-                        .modify(db)
-                        .children
-                        .as_mut()
-                        .unwrap();
-                    for implicit in custom_implicits.iter().rev() {
-                        arg_children.insert(0, RewriteNode::Text(format!("ref {implicit}")));
-                    }
-                    was_rewritten = true;
-                }
-
-                let maybe_rewritten = if was_rewritten || func_call_diagnostics.len() == 0 {
-                    MaybeRewritten::Some(rewritten_call)
-                } else {
-                    MaybeRewritten::None(rewritten_call)
-                };
-                (maybe_rewritten, func_call_diagnostics)
-            }
-            _ => handle_expression(db, function_with_implicits, expr),
-        };
-
-        should_rewrite = rewritten_child.rewritten();
+        chidlren_to_modify.push((index, rewritten_child));
         diagnostics.extend(child_diagnostic);
-        chidlren_to_modify.push((index, rewritten_child.unwrap()));
     }
-
-    if !should_rewrite || diagnostics.len() > 0 {
-        return (
-            MaybeRewritten::None(RewriteNode::from_ast(&expression)),
-            diagnostics,
-        );
-    }
-
-    let mut rewritten_expression = RewriteNode::from_ast(&expression);
-    let children_to_rewrite = rewritten_expression.modify(db).children.as_mut().unwrap();
-    for (index, child_to_rewrite) in chidlren_to_modify {
-        children_to_rewrite[index] = child_to_rewrite;
-    }
-    (MaybeRewritten::Some(rewritten_expression), diagnostics)
+    (chidlren_to_modify, diagnostics)
 }
 
 fn gather_function_with_implicits(
@@ -448,32 +459,76 @@ fn gather_function_with_implicits(
         HashMap::new(),
         |mut name_to_implicit, item| match item {
             ast::Item::FreeFunction(func) => {
-                let custom_implicts = func
-                    .attributes(db)
-                    .elements(db)
-                    .into_iter()
-                    .find(|attr| attr.attr(db).text(db) == IMPLICIT_ATTR);
-                if let Some(custom_implicts) = custom_implicts {
-                    if let ast::OptionAttributeArgs::AttributeArgs(args) = custom_implicts.args(db)
-                    {
-                        let implicit_params = args.arg_list(db).elements(db).into_iter().fold(
-                            vec![],
-                            |mut acc, arg| {
-                                let arg_name = get_implicit_arg(db, arg).unwrap();
-                                acc.push(format!("ref {arg_name}: {WARPMEMORY_TYPE}, "));
-                                acc
-                            },
-                        );
-                        let func_name = func.declaration(db).name(db).text(db);
-                        name_to_implicit.insert(func_name, implicit_params);
-                    }
+                if let Ok(Some(implicits)) = extract_implicit_attributes(db, &func) {
+                    let func_name = func.declaration(db).name(db).text(db);
+                    name_to_implicit
+                        .insert(func_name, implicits.into_iter().map(|ii| ii.name).collect());
                 }
-
                 name_to_implicit
             }
             _ => name_to_implicit,
         },
     )
+}
+
+fn extract_implicit_attributes(
+    db: &dyn SyntaxGroup,
+    func: &FunctionWithBody,
+) -> Result<Option<Vec<ImplicitInfo>>, Vec<PluginDiagnostic>> {
+    let maybe_custom_implicit = func
+        .attributes(db)
+        .elements(db)
+        .into_iter()
+        .find(|attr| attr.attr(db).text(db) == IMPLICIT_ATTR);
+
+    if let Some(custom_implicts) = maybe_custom_implicit {
+        if let ast::OptionAttributeArgs::AttributeArgs(args) = custom_implicts.args(db) {
+            let mut implicits = vec![];
+            let mut diagnostics = vec![];
+
+            let attr_args = args.arg_list(db).elements(db);
+            if attr_args.len() == 0 {
+                return Ok(None);
+            }
+            if attr_args.len() % 2 != 0 {
+                return Err(vec![PluginDiagnostic {
+                    stable_ptr: custom_implicts.stable_ptr().untyped(),
+                    message: "Invalid amount of parameters".into(),
+                }]);
+            }
+
+            for i in (0..attr_args.len()).step_by(2) {
+                let name_expr = &attr_args[i];
+                let type_expr = &attr_args[i + 1];
+
+                if let [Expr::Path(path_name), Expr::Path(path_type)] = [name_expr, type_expr] {
+                    if let [[PathSegment::Simple(segment_name)], [PathSegment::Simple(segment_type)]] =
+                        [&path_name.elements(db)[..], &path_type.elements(db)[..]]
+                    {
+                        let name = segment_name.ident(db).text(db);
+                        let typex = segment_type.ident(db).text(db);
+                        implicits.push(ImplicitInfo { name, typex });
+                    } else {
+                        diagnostics.push(PluginDiagnostic {
+                            stable_ptr: path_name.stable_ptr().untyped(),
+                            message: "Expected two path segments.".into(),
+                        });
+                    }
+                } else {
+                    diagnostics.push(PluginDiagnostic {
+                        stable_ptr: name_expr.stable_ptr().untyped(),
+                        message: "Expected path.".into(),
+                    });
+                }
+            }
+            return if diagnostics.len() == 0 {
+                Ok(Some(implicits))
+            } else {
+                Err(diagnostics)
+            };
+        }
+    }
+    Ok(None)
 }
 
 fn get_implicit_arg(db: &dyn SyntaxGroup, arg: Expr) -> Option<SmolStr> {
@@ -490,5 +545,11 @@ fn get_func_call_name(db: &dyn SyntaxGroup, func_call: &ExprFunctionCall) -> Smo
     if let [ast::PathSegment::Simple(func_name_token)] = &path.elements(db)[..] {
         return func_name_token.ident(db).text(db);
     }
-    panic!("Couldn't get function call name");
+    if let [ast::PathSegment::Simple(_), ast::PathSegment::Simple(b)] = &path.elements(db)[..] {
+        // dbg!("Here {0} {1}", a.ident(db).text(db), b.ident(db).text(db));
+        return b.ident(db).text(db);
+    }
+    // let count = path.elements(db).len();
+    // dbg!(count);
+    panic!("Couldn't get func call name");
 }
