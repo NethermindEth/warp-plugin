@@ -1,27 +1,24 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use cairo_lang_defs::plugin::{
-    DynGeneratedFileAuxData, GeneratedFileAuxData, MacroPlugin, PluginDiagnostic,
-    PluginGeneratedFile, PluginResult,
+    DynGeneratedFileAuxData, GeneratedFileAuxData, MacroPlugin, PluginGeneratedFile, PluginResult,
 };
 use cairo_lang_diagnostics::DiagnosticEntry;
 use cairo_lang_semantic::db::SemanticGroup;
-use cairo_lang_semantic::patcher::{PatchBuilder, Patches, RewriteNode};
+use cairo_lang_semantic::patcher::{PatchBuilder, Patches};
 use cairo_lang_semantic::plugin::{
     AsDynGeneratedFileAuxData, AsDynMacroPlugin, DynPluginAuxData, PluginAuxData,
     PluginMappedDiagnostic, SemanticPlugin,
 };
 use cairo_lang_semantic::SemanticDiagnostic;
-use cairo_lang_syntax::node::ast::{FunctionWithBody, MaybeModuleBody, ModuleBody};
+use cairo_lang_syntax::node::ast::{FunctionWithBody, MaybeModuleBody};
 use cairo_lang_syntax::node::db::SyntaxGroup;
-use cairo_lang_syntax::node::{ast, SyntaxNode, Terminal, TypedSyntaxNode};
-use regex::Regex;
+use cairo_lang_syntax::node::{ast, Terminal, TypedSyntaxNode};
 
 use smol_str::SmolStr;
 
-use crate::all::{handle_function, handle_module, MaybeRewritten};
-use crate::implicits::handle_implicits;
+use crate::handling::{handle_function, handle_module, MaybeRewritten};
 
 /// Warp related auxiliary data of the Warp plugin.
 #[derive(Debug, PartialEq, Eq)]
@@ -98,6 +95,7 @@ impl WarpPlugin {
     ///
     fn handle_mod(&self, db: &dyn SyntaxGroup, module_ast: &ast::ItemModule) -> PluginResult {
         let module_name = module_ast.name(db).text(db);
+        // dbg!(format!("Handle module {module_name}"));
         if let MaybeModuleBody::Some(module_body) = module_ast.body(db) {
             let attributes = module_ast.attributes(db).as_syntax_node();
             let (maybe_module_rewritten, diagnostics) =
@@ -148,6 +146,7 @@ impl WarpPlugin {
     /// indicating whether the original function should be removed.
     ///
     fn handle_functions(&self, db: &dyn SyntaxGroup, func_ast: &FunctionWithBody) -> PluginResult {
+        // dbg!(format!("Handling external function"));
         // TODO(Performance): Avoid this clone
         let (maybe_rewriten_func, implicit_diagnostics) =
             handle_function(db, &HashMap::new(), func_ast.clone());
@@ -179,7 +178,7 @@ impl WarpPlugin {
 
 impl MacroPlugin for WarpPlugin {
     fn generate_code(&self, db: &dyn SyntaxGroup, item_ast: ast::Item) -> PluginResult {
-        dbg!("First of firsts");
+        // dbg!("Generating code");
         match &item_ast {
             ast::Item::FreeFunction(func_ast) => self.handle_functions(db, func_ast),
             ast::Item::Module(module_ast) => self.handle_mod(db, module_ast),
@@ -198,35 +197,3 @@ impl AsDynMacroPlugin for WarpPlugin {
 }
 
 impl SemanticPlugin for WarpPlugin {}
-
-/// Parses a Cairo code string and returns a `HashMap` containing the indices of all functions with an
-/// #[implicit] attribute that match the given implicit name.
-///
-/// # Arguments
-///
-/// * `code` - A reference to a `String` representing the Rust code to search.
-/// * `implicit_name` - The name of the implicit function to search for.
-///
-/// # Returns
-///
-/// A `HashMap` containing the indices of all functions with an #[implicit] attribute that match
-/// the given implicit function name.
-///
-fn get_file_function_indices(code: &str, implicit_name: &str) -> HashMap<String, usize> {
-    let re = Regex::new(&format!(
-        r"#\[implicit\([^\)]*{}[^\)]*\)\]\s*fn\s+([a-zA-Z_][a-zA-Z0-9_]*)",
-        implicit_name
-    ))
-    .unwrap();
-    let mut function_indices = HashMap::new();
-    let mut index = 0;
-
-    for caps in re.captures_iter(code) {
-        if let Some(function_name) = caps.get(1) {
-            function_indices.insert(function_name.as_str().to_string(), index);
-            index += 1;
-        }
-    }
-
-    function_indices
-}
