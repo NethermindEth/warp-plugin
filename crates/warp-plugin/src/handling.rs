@@ -1,9 +1,8 @@
 use cairo_lang_defs::plugin::PluginDiagnostic;
-use cairo_lang_semantic::items::imp;
 use cairo_lang_semantic::patcher::RewriteNode;
 use cairo_lang_syntax::node::ast::{
     ArgListParenthesized, Expr, ExprBlock, ExprFunctionCall, FunctionDeclaration,
-    FunctionSignature, FunctionWithBody, MaybeModuleBody, ModuleBody, PathSegment, Statement,
+    FunctionSignature, FunctionWithBody, MaybeModuleBody, ModuleBody, Statement,
 };
 use cairo_lang_syntax::node::SyntaxNode;
 use cairo_lang_syntax::node::{ast, db::SyntaxGroup, Terminal, TypedSyntaxNode};
@@ -11,22 +10,15 @@ use itertools::Itertools;
 use smol_str::SmolStr;
 use std::collections::HashMap;
 
-use crate::kind::IsExpression;
+use crate::utils::{
+    extract_implicit_attributes, gather_function_with_implicits, get_func_call_name, FuncName,
+    Implicits, IsExpression,
+};
 use std::string::String;
 
-const STATEMENT: &str = "statement";
-const IMPLICIT_ATTR: &str = "implicit";
-const WARPMEMORY_NAME: &str = "warp_memory";
-const WARPMEMORY_TYPE: &str = "Felt252Dict<u128>";
-
 type HandlingResult = (MaybeRewritten, Vec<PluginDiagnostic>);
-type FuncName = SmolStr;
-type Implicits = Vec<SmolStr>;
 
-struct ImplicitInfo {
-    name: SmolStr,
-    typex: SmolStr,
-}
+const STATEMENT: &str = "statement";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MaybeRewritten {
@@ -125,6 +117,7 @@ pub fn handle_module(
         dbg!(&function_with_implicits);
     }
     if diagnostics.len() > 0 || modified_modules.len() + modified_functions.len() == 0 {
+        dbg!(&diagnostics);
         return (
             MaybeRewritten::None(RewriteNode::from_ast(&module_body)),
             diagnostics,
@@ -213,6 +206,7 @@ fn handle_function_declaration(
 ) -> HandlingResult {
     match extract_implicit_attributes(db, &func_body) {
         Ok(Some(implicits)) => {
+            dbg!(&implicits);
             let mut func_declaration = RewriteNode::from_ast(&func_body.declaration(db));
             func_declaration
                 .modify_child(db, FunctionDeclaration::INDEX_SIGNATURE)
@@ -280,7 +274,7 @@ fn handle_expression_blocks(
     // Rewrite the expression block
     let expr_block_str = (0..rewrite_body.len())
         .map(|i| format!("${STATEMENT}_{i}$"))
-        .join("\n");
+        .join("");
     let expr_block_str = format!("{{{expr_block_str}}}");
     let expr_bloc_rewrriten = RewriteNode::interpolate_patched(&expr_block_str, rewrite_body);
 
@@ -372,7 +366,7 @@ fn handle_function_call(
     let (maybe_rewritten, diagnostics) =
         generic_expression_rewrite(db, function_with_implicits, &func_call);
 
-    if (diagnostics.len() > 0) {
+    if diagnostics.len() > 0 {
         return (maybe_rewritten, diagnostics);
     }
 
@@ -413,7 +407,7 @@ fn generic_expression_rewrite<T: TypedSyntaxNode>(
         .iter()
         .any(|(_, child)| matches!(child, MaybeRewritten::Some(_)));
 
-    if (!should_rewrite || diagnostics.len() > 0) {
+    if !should_rewrite || diagnostics.len() > 0 {
         return (
             MaybeRewritten::None(RewriteNode::from_ast(expression)),
             diagnostics,
@@ -449,107 +443,4 @@ fn rewrite_children_expressions<T: TypedSyntaxNode>(
         diagnostics.extend(child_diagnostic);
     }
     (chidlren_to_modify, diagnostics)
-}
-
-fn gather_function_with_implicits(
-    db: &dyn SyntaxGroup,
-    module_body: &ModuleBody,
-) -> HashMap<FuncName, Implicits> {
-    module_body.items(db).elements(db).into_iter().fold(
-        HashMap::new(),
-        |mut name_to_implicit, item| match item {
-            ast::Item::FreeFunction(func) => {
-                if let Ok(Some(implicits)) = extract_implicit_attributes(db, &func) {
-                    let func_name = func.declaration(db).name(db).text(db);
-                    name_to_implicit
-                        .insert(func_name, implicits.into_iter().map(|ii| ii.name).collect());
-                }
-                name_to_implicit
-            }
-            _ => name_to_implicit,
-        },
-    )
-}
-
-fn extract_implicit_attributes(
-    db: &dyn SyntaxGroup,
-    func: &FunctionWithBody,
-) -> Result<Option<Vec<ImplicitInfo>>, Vec<PluginDiagnostic>> {
-    let maybe_custom_implicit = func
-        .attributes(db)
-        .elements(db)
-        .into_iter()
-        .find(|attr| attr.attr(db).text(db) == IMPLICIT_ATTR);
-
-    if let Some(custom_implicts) = maybe_custom_implicit {
-        if let ast::OptionAttributeArgs::AttributeArgs(args) = custom_implicts.args(db) {
-            let mut implicits = vec![];
-            let mut diagnostics = vec![];
-
-            let attr_args = args.arg_list(db).elements(db);
-            if attr_args.len() == 0 {
-                return Ok(None);
-            }
-            if attr_args.len() % 2 != 0 {
-                return Err(vec![PluginDiagnostic {
-                    stable_ptr: custom_implicts.stable_ptr().untyped(),
-                    message: "Invalid amount of parameters".into(),
-                }]);
-            }
-
-            for i in (0..attr_args.len()).step_by(2) {
-                let name_expr = &attr_args[i];
-                let type_expr = &attr_args[i + 1];
-
-                if let [Expr::Path(path_name), Expr::Path(path_type)] = [name_expr, type_expr] {
-                    if let [[PathSegment::Simple(segment_name)], [PathSegment::Simple(segment_type)]] =
-                        [&path_name.elements(db)[..], &path_type.elements(db)[..]]
-                    {
-                        let name = segment_name.ident(db).text(db);
-                        let typex = segment_type.ident(db).text(db);
-                        implicits.push(ImplicitInfo { name, typex });
-                    } else {
-                        diagnostics.push(PluginDiagnostic {
-                            stable_ptr: path_name.stable_ptr().untyped(),
-                            message: "Expected two path segments.".into(),
-                        });
-                    }
-                } else {
-                    diagnostics.push(PluginDiagnostic {
-                        stable_ptr: name_expr.stable_ptr().untyped(),
-                        message: "Expected path.".into(),
-                    });
-                }
-            }
-            return if diagnostics.len() == 0 {
-                Ok(Some(implicits))
-            } else {
-                Err(diagnostics)
-            };
-        }
-    }
-    Ok(None)
-}
-
-fn get_implicit_arg(db: &dyn SyntaxGroup, arg: Expr) -> Option<SmolStr> {
-    if let ast::Expr::Path(expr) = arg {
-        if let [ast::PathSegment::Simple(segment)] = &expr.elements(db)[..] {
-            return Some(segment.ident(db).text(db));
-        }
-    }
-    None
-}
-
-fn get_func_call_name(db: &dyn SyntaxGroup, func_call: &ExprFunctionCall) -> SmolStr {
-    let path = func_call.path(db);
-    if let [ast::PathSegment::Simple(func_name_token)] = &path.elements(db)[..] {
-        return func_name_token.ident(db).text(db);
-    }
-    if let [ast::PathSegment::Simple(_), ast::PathSegment::Simple(b)] = &path.elements(db)[..] {
-        // dbg!("Here {0} {1}", a.ident(db).text(db), b.ident(db).text(db));
-        return b.ident(db).text(db);
-    }
-    // let count = path.elements(db).len();
-    // dbg!(count);
-    panic!("Couldn't get func call name");
 }
