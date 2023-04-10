@@ -93,6 +93,7 @@ cairo_lang_test_utils::test_file_test_with_runner!(
         warp_memory_top_level: "warp_memory/top_level",
         warp_memory_module: "warp_memory/module",
         warp_memory_nested_module: "warp_memory/nested_module",
+        warp_memory_module_nested_calls: "warp_memory/module_nested_calls"
     },
     ExpandContractTestRunner
 );

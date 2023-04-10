@@ -6,12 +6,14 @@ ExpandContractTestRunner
 //! > cairo_code
 #[contract]
 mod Module{
-	#[implicit(warp_memory)]
+    use warplib::memory::WarpMemoryTrait;
+
+	#[implicit(warp_memory, Felt252Dict<u128>)]
 	fn read_from_memory(index: felt252) {
 		warp_memory.read_u128(index);
 	}
 
-	#[implicit(warp_memory)]
+	#[implicit(warp_memory, Felt252Dict<u128>)]
     fn read_from_memory_2(index: felt252) {
         warp_memory.read_u128(index);
     }
@@ -23,7 +25,6 @@ mod Module{
 #[contract]
 mod Module {
     use warplib::memory::WarpMemoryTrait;
-
 
     fn read_from_memory(ref warp_memory: Felt252Dict<u128>, index: felt252) {
         warp_memory.read_u128(index);
