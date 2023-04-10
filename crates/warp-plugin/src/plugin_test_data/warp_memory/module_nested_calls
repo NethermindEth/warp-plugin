@@ -1,0 +1,34 @@
+//! > Test expansion of a function signature depending on warp memory.
+
+//! > test_runner_name
+ExpandContractTestRunner
+
+//! > cairo_code
+#[contract]
+mod Module{
+    fn init_x() {
+        let mut x = 5;
+        let index = 3;
+        increase_x(index);
+    }
+
+	#[implicit(x: felt252)]
+	fn increase_x(index: felt252) {
+		x = x + index;
+	}
+}
+
+//! > expected_diagnostics
+
+//! > generated_cairo_code
+#[contract]
+mod Module {
+    fn init_x() {
+        let mut x = 5;
+        let index = 3;
+        increase_x(ref x, index);
+    }
+    fn increase_x(ref x: felt252, index: felt252) {
+        x = x + index;
+    }
+}
