@@ -58,23 +58,23 @@ pub fn extract_implicit_attributes(
             if attr_args.len() == 0 {
                 return Ok(None);
             }
-            if attr_args.len() % 2 != 0 {
-                return Err(vec![PluginDiagnostic {
-                    stable_ptr: custom_implicts.stable_ptr().untyped(),
-                    message: "Invalid amount of parameters".into(),
-                }]);
-            }
+            //if attr_args.len() % 2 != 0 {
+            //    return Err(vec![PluginDiagnostic {
+            //        stable_ptr: custom_implicts.stable_ptr().untyped(),
+            //        message: "Invalid amount of parameters".into(),
+            //    }]);
+            //}
 
-            for i in (0..attr_args.len()).step_by(2) {
+            for i in (0..attr_args.len()).step_by(1) {
                 let name_expr = &attr_args[i];
-                let type_expr = &attr_args[i + 1];
+                let type_expr = &attr_args[i /*+ 1*/];
 
                 if let [Expr::Path(path_name), Expr::Path(path_type)] = [name_expr, type_expr] {
-                    if let [[PathSegment::Simple(segment_name)], [PathSegment::Simple(segment_type)]] =
+                    if let [[PathSegment::Simple(segment_name)], [PathSegment::Simple(_segment_type)]] =
                         [&path_name.elements(db)[..], &path_type.elements(db)[..]]
                     {
                         let name = segment_name.ident(db).text(db);
-                        let typex = segment_type.ident(db).text(db);
+                        let typex = SmolStr::from("WarpMemory"); //segment_type.ident(db).text(db);
                         implicits.push(ImplicitInfo { name, typex });
                     } else {
                         diagnostics.push(PluginDiagnostic {
@@ -83,8 +83,6 @@ pub fn extract_implicit_attributes(
                         });
                     }
                 } else {
-                    dbg!(name_expr.as_syntax_node().kind(db).get_text());
-                    dbg!(type_expr.as_syntax_node().kind(db).get_text());
                     diagnostics.push(PluginDiagnostic {
                         stable_ptr: name_expr.stable_ptr().untyped(),
                         message: "Expected path expressions.".into(),
