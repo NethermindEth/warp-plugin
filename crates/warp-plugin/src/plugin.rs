@@ -94,9 +94,8 @@ impl WarpPlugin {
     /// indicating whether the original module should be removed.
     ///
     fn handle_mod(&self, db: &dyn SyntaxGroup, module_ast: &ast::ItemModule) -> PluginResult {
-        let module_name = module_ast.name(db).text(db);
-        // dbg!(format!("Handle module {module_name}"));
         if let MaybeModuleBody::Some(module_body) = module_ast.body(db) {
+            let module_name = module_ast.name(db).text(db);
             let attributes = module_ast.attributes(db).as_syntax_node();
             let (maybe_module_rewritten, diagnostics) =
                 handle_module(db, module_body, module_name.clone(), attributes);
@@ -145,7 +144,10 @@ impl WarpPlugin {
     /// A `PluginResult` struct containing the generated code, any diagnostic messages, and a boolean
     /// indicating whether the original function should be removed.
     ///
-    fn handle_functions(&self, db: &dyn SyntaxGroup, func_ast: &FunctionWithBody) -> PluginResult {
+    /// # Notes
+    ///
+    /// The plugin does not support free functions
+    fn _handle_function(&self, db: &dyn SyntaxGroup, func_ast: &FunctionWithBody) -> PluginResult {
         // dbg!(format!("Handling external function"));
         // TODO(Performance): Avoid this clone
         let (maybe_rewriten_func, implicit_diagnostics) =
@@ -178,9 +180,7 @@ impl WarpPlugin {
 
 impl MacroPlugin for WarpPlugin {
     fn generate_code(&self, db: &dyn SyntaxGroup, item_ast: ast::Item) -> PluginResult {
-        // dbg!("Generating code");
         match &item_ast {
-            ast::Item::FreeFunction(func_ast) => self.handle_functions(db, func_ast),
             ast::Item::Module(module_ast) => self.handle_mod(db, module_ast),
             _ => PluginResult::default(),
         }

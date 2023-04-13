@@ -3,7 +3,6 @@ use std::ops::DerefMut;
 
 use anyhow::{ensure, Context, Result};
 use cairo_lang_compiler::db::RootDatabase;
-use cairo_lang_filesystem::ids::Directory;
 
 use cairo_lang_starknet::contract::find_contracts;
 use cairo_lang_starknet::contract_class::compile_prepared_db;
@@ -18,6 +17,12 @@ use tracing::{trace, trace_span};
 use crate::db::WarpRootDatabaseBuilderEx;
 
 pub struct WarpCompiler;
+
+// impl WarpCompiler {
+//     fn new(custom_implicits: String) -> WarpCompiler {
+//         let json: serde_json::Value = serde_json::from_str(&custom_implicits).ok().unwrap();
+//     }
+// }
 
 impl Compiler for WarpCompiler {
     fn target_kind(&self) -> &str {
@@ -44,12 +49,7 @@ impl Compiler for WarpCompiler {
 
         let target_dir = unit.profile.target_dir(ws.config());
 
-        // override config with local corelib
-        let mut config = build_project_config(&unit)?;
-        let core_dir = std::env::var("CAIRO_CORELIB_DIR")
-            .unwrap_or_else(|e| panic!("Problem getting the corelib path: {e:?}"));
-        config.corelib = Some(Directory(core_dir.into()));
-
+        let config = build_project_config(&unit)?;
         let mut db = RootDatabase::builder()
             .with_project_config(config)
             .with_warp()
