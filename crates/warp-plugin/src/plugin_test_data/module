@@ -1,0 +1,32 @@
+//! > Test expansion of a function signature depending on warp memory.
+
+//! > test_runner_name
+ExpandContractTestRunner
+
+//! > cairo_code
+#[contract]
+mod Module{
+	#[implicit(value: felt252)]
+	fn sum(index: felt252) {
+		value = value + index;
+	}
+
+	#[implicit(value: felt252)]
+    fn sub(index: felt252) {
+        value = value - index;
+    }
+}
+
+//! > expected_diagnostics
+
+//! > generated_cairo_code
+#[contract]
+mod Module {
+    fn sum(ref value: felt252, index: felt252) {
+        value = value + index;
+    }
+
+    fn sub(ref value: felt252, index: felt252) {
+        value = value - index;
+    }
+}

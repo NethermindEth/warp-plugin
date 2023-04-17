@@ -1,0 +1,27 @@
+//! > Test expansion of a function signature depending on warp memory.
+
+//! > test_runner_name
+ExpandContractTestRunner
+
+//! > cairo_code
+#[contract]
+mod Module1{
+	mod Module{
+		#[implicit(b: bool)]
+		fn toggle() {
+			b = !b;
+		}
+	}
+}
+
+//! > expected_diagnostics
+
+//! > generated_cairo_code
+#[contract]
+mod Module1 {
+    mod Module {
+        fn toggle(ref b: bool) {
+            b = !b;
+        }
+    }
+}
