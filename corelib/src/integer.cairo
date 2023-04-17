@@ -1,6 +1,8 @@
 use zeroable::IsZeroResult;
 use option::OptionTrait;
+use option::OptionTraitImpl;
 use result::ResultTrait;
+use result::ResultTraitImpl;
 use traits::Into;
 use traits::TryInto;
 use traits::Default;
