@@ -72,10 +72,6 @@ pub fn handle_module(
     let mut diagnostics = vec![];
 
     let function_with_implicits = gather_function_with_implicits(db, &module_body);
-    if function_with_implicits.len() > 0 {
-        dbg!("Inside module");
-        dbg!(&function_with_implicits);
-    }
 
     module_body
         .items(db)
@@ -112,12 +108,7 @@ pub fn handle_module(
             _ => kept_original_items.push(RewriteNode::Copied(item.as_syntax_node())),
         });
 
-    if function_with_implicits.len() > 0 {
-        dbg!("Exiting module");
-        dbg!(&function_with_implicits);
-    }
     if diagnostics.len() > 0 || modified_modules.len() + modified_functions.len() == 0 {
-        dbg!(&diagnostics);
         return (
             MaybeRewritten::None(RewriteNode::from_ast(&module_body)),
             diagnostics,
@@ -161,11 +152,6 @@ pub fn handle_function(
     function_with_implicits: &HashMap<FuncName, Implicits>,
     function_body: FunctionWithBody,
 ) -> HandlingResult {
-    if function_with_implicits.len() > 0 {
-        let func_name = function_body.declaration(db).name(db).text(db);
-        dbg!(format!("Vising function {func_name}"));
-    }
-
     let (rewritten_expr_bloc, expr_block_diagnostics) =
         handle_expression_blocks(db, function_with_implicits, function_body.body(db));
 
@@ -174,11 +160,6 @@ pub fn handle_function(
 
     let mut func_diagnostics = expr_block_diagnostics;
     func_diagnostics.extend(declaration_diagnostics);
-
-    if function_with_implicits.len() > 0 {
-        let func_name = function_body.declaration(db).name(db).text(db);
-        dbg!(format!("Exiting function {func_name}"));
-    }
 
     if rewritten_expr_bloc.not_rewritten() && rewritten_declaration.not_rewritten() {
         return (
@@ -206,7 +187,6 @@ fn handle_function_declaration(
 ) -> HandlingResult {
     match extract_implicit_attributes(db, &func_body) {
         Ok(Some(implicits)) => {
-            dbg!(&implicits);
             let mut func_declaration = RewriteNode::from_ast(&func_body.declaration(db));
             func_declaration
                 .modify_child(db, FunctionDeclaration::INDEX_SIGNATURE)
@@ -220,8 +200,8 @@ fn handle_function_declaration(
                     RewriteNode::Text(
                         implicits
                             .into_iter()
-                            .map(|ii| format!("ref {0}: {1},", ii.name, ii.typex))
-                            .join(""),
+                            .map(|ii| format!("ref {0}: {1}", ii.name, ii.typex))
+                            .join(", "),
                     ),
                 );
             (MaybeRewritten::Some(func_declaration), vec![])

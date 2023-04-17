@@ -107,17 +107,16 @@ pub fn get_func_call_name(db: &dyn SyntaxGroup, func_call: &ExprFunctionCall) ->
     if let [ast::PathSegment::Simple(func_name_token)] = &path.elements(db)[..] {
         return func_name_token.ident(db).text(db);
     }
+    // TODO: blind fix, figure out when this can happen
     if let [ast::PathSegment::Simple(_), ast::PathSegment::Simple(b)] = &path.elements(db)[..] {
-        // dbg!("Here {0} {1}", a.ident(db).text(db), b.ident(db).text(db));
         return b.ident(db).text(db);
     }
-    // let count = path.elements(db).len();
-    // dbg!(count);
     panic!("Couldn't get func call name");
 }
 
 fn simple_path_from_expr(db: &dyn SyntaxGroup, expr: Expr) -> Result<SmolStr, PluginDiagnostic> {
     let Expr::Path(path) = expr else {
+        println!("Is not path expr, it is: {0}", expr.as_syntax_node().kind(db).get_expr_type());
         return  Err(PluginDiagnostic{
             stable_ptr: expr.stable_ptr().untyped(), message: "Expected a path expression for type parsing".into()
         });
@@ -133,8 +132,7 @@ fn simple_path_from_expr(db: &dyn SyntaxGroup, expr: Expr) -> Result<SmolStr, Pl
 pub trait IsExpression {
     fn is_expression(&self) -> bool;
 
-    // todo: delete after debugging
-    fn get_text(&self) -> String;
+    fn get_expr_type(&self) -> String;
 }
 
 impl IsExpression for SyntaxKind {
@@ -163,7 +161,7 @@ impl IsExpression for SyntaxKind {
     }
 
     // todo: delete after debugging
-    fn get_text(&self) -> String {
+    fn get_expr_type(&self) -> String {
         let branch_name = match self {
             SyntaxKind::ExprPath => "ExprPath",
             SyntaxKind::TerminalLiteralNumber => "TerminalLiteralNumber",

@@ -18,12 +18,6 @@ use crate::db::WarpRootDatabaseBuilderEx;
 
 pub struct WarpCompiler;
 
-// impl WarpCompiler {
-//     fn new(custom_implicits: String) -> WarpCompiler {
-//         let json: serde_json::Value = serde_json::from_str(&custom_implicits).ok().unwrap();
-//     }
-// }
-
 impl Compiler for WarpCompiler {
     fn target_kind(&self) -> &str {
         "warp"
