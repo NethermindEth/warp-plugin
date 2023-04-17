@@ -14,29 +14,20 @@ use warp_plugin::compiler::WarpCompiler;
 pub struct BuildArgs {
     #[clap(help = "Source directory")]
     path: Option<Utf8PathBuf>,
-    // #[clap(help = "Implicit type information")]
-    // implicit_info: Option<Utf8PathBuf>,
 }
 
 pub fn run(args: BuildArgs) -> Result<()> {
+    println!("a0");
     let source_dir = match args.path {
         Some(path) => get_absolute_path(path),
         None => Utf8PathBuf::from_path_buf(current_dir().unwrap()).unwrap(),
     };
 
-    //let implcit_file = match args.implicit_info {
-    //    Some(path) => Ok(get_absolute_path(path)),
-    //    None => Err(anyhow::Error::new(std::io::Error::new(
-    //        std::io::ErrorKind::Other,
-    //        "Implicit type information must be defined",
-    //    ))),
-    //}?;
-    //let implicit_content = fs::read_to_string(implcit_file)?;
-
-    let mut compilers = CompilerRepository::empty();
+    let mut compilers = CompilerRepository::std();
     compilers.add(Box::new(WarpCompiler)).unwrap();
 
     let manifest_path = source_dir.join("Scarb.toml");
+    dbg!(&manifest_path);
 
     let config = Config::builder(manifest_path)
         .ui_verbosity(Verbosity::Verbose)
@@ -49,7 +40,8 @@ pub fn run(args: BuildArgs) -> Result<()> {
         eprintln!("error: {}", err);
         std::process::exit(1);
     });
-    ops::compile(&ws)
+    let x = ops::compile(&ws);
+    x
 }
 
 fn get_absolute_path(path: Utf8PathBuf) -> Utf8PathBuf {

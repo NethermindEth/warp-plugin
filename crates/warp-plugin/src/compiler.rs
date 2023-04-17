@@ -1,7 +1,7 @@
 use std::iter::zip;
 use std::ops::DerefMut;
 
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result};
 use cairo_lang_compiler::db::RootDatabase;
 
 use cairo_lang_starknet::contract::find_contracts;
@@ -11,7 +11,7 @@ use scarb::compiler::helpers::{
     build_compiler_config, build_project_config, collect_main_crate_ids,
 };
 use scarb::compiler::{CompilationUnit, Compiler};
-use scarb::core::{ExternalTargetKind, Workspace};
+use scarb::core::Workspace;
 use tracing::{trace, trace_span};
 
 use crate::db::WarpRootDatabaseBuilderEx;
@@ -40,14 +40,14 @@ impl Compiler for WarpCompiler {
     ///
     /// Returns a `Result` with the unit's contracts compiled into JSON files, or an error if the compilation fails.
     fn compile(&self, unit: CompilationUnit, ws: &Workspace<'_>) -> Result<()> {
-        let props = unit.target.kind.downcast::<ExternalTargetKind>();
-        ensure!(
-            props.params.is_empty(),
-            "target `{}` does not accept any parameters",
-            props.kind_name
-        );
+        // let props = unit.target().kind; //.downcast::<ExternalTargetKind>();
+        // ensure!(
+        //     props.params.is_empty(),
+        //     "target `{}` does not accept any parameters",
+        //     props.kind_name
+        // );
 
-        let target_dir = unit.profile.target_dir(ws.config());
+        let target_dir = unit.target_dir(ws.config());
 
         let config = build_project_config(&unit)?;
         let mut db = RootDatabase::builder()
@@ -78,7 +78,7 @@ impl Compiler for WarpCompiler {
         };
 
         for (decl, class) in zip(contracts, classes) {
-            let target_name = &unit.target.name;
+            let target_name = &unit.target().name;
             let contract_name = decl.submodule_id.name(db.upcast());
             let mut file = target_dir.open_rw(
                 format!("{target_name}_{contract_name}.json"),

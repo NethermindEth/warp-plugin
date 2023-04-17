@@ -281,12 +281,31 @@ fn handle_expression_blocks(
     (MaybeRewritten::Some(expr_bloc_rewrriten), diagnostics)
 }
 
+// TODO: Refactor branches (very similar each one!)
 fn handle_statement(
     db: &dyn SyntaxGroup,
     function_with_implicits: &HashMap<FuncName, Implicits>,
     statement: Statement,
 ) -> HandlingResult {
     match statement {
+        Statement::Break(stmnt) => {
+            let (rewritten_expr, diagnostics) =
+                handle_expression(db, function_with_implicits, stmnt.expr(db));
+            let should_rewrite = rewritten_expr.rewritten();
+
+            let rewritten_stmnt = RewriteNode::interpolate_patched(
+                "break $expr$;",
+                HashMap::from([("expr".to_string(), rewritten_expr.unwrap())]),
+            );
+
+            let maybe_rewritten = if should_rewrite {
+                MaybeRewritten::Some(rewritten_stmnt)
+            } else {
+                MaybeRewritten::None(rewritten_stmnt)
+            };
+
+            (maybe_rewritten, diagnostics)
+        }
         Statement::Expr(stmnt) => {
             let (rewritten_expr, diagnostics) =
                 handle_expression(db, function_with_implicits, stmnt.expr(db));

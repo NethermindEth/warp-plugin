@@ -62,7 +62,7 @@ impl WarpRootDatabaseBuilderEx for RootDatabaseBuilder {
 
         let mut plugins = get_default_plugins();
         plugins.push(Arc::new(WarpPlugin::new()));
-        plugins.push(Arc::new(StarkNetPlugin {}));
+        plugins.push(Arc::new(StarkNetPlugin::default()));
 
         self.with_implicit_precedence(&precedence)
             .with_plugins(plugins)

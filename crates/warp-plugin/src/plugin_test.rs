@@ -2,6 +2,8 @@ use std::collections::VecDeque;
 use std::env::current_dir;
 use std::sync::Arc;
 
+use crate::db::WarpRootDatabaseBuilderEx;
+use crate::plugin::WarpPlugin;
 use cairo_lang_compiler::db::RootDatabase;
 use cairo_lang_compiler::diagnostics::get_diagnostics_as_string;
 use cairo_lang_defs::db::DefsGroup;
@@ -10,9 +12,6 @@ use cairo_lang_filesystem::db::{FilesGroup, FilesGroupEx};
 use cairo_lang_filesystem::ids::{CrateLongId, Directory, FileLongId, VirtualFile};
 use cairo_lang_formatter::format_string;
 use cairo_lang_parser::db::ParserGroup;
-
-use crate::db::WarpRootDatabaseBuilderEx;
-use crate::plugin::WarpPlugin;
 use cairo_lang_semantic::test_utils::setup_test_module;
 use cairo_lang_syntax::node::TypedSyntaxNode;
 use cairo_lang_test_utils::parse_test_file::TestFileRunner;

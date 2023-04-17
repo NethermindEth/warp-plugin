@@ -1,6 +1,6 @@
 use cairo_lang_defs::plugin::PluginDiagnostic;
 use cairo_lang_syntax::node::ast::{
-    Expr, ExprFunctionCall, FunctionWithBody, ModuleBody, PathSegment,
+    ArgClause, Expr, ExprFunctionCall, FunctionWithBody, ModuleBody, PathSegment,
 };
 use cairo_lang_syntax::node::kind::SyntaxKind;
 use cairo_lang_syntax::node::{ast, db::SyntaxGroup, Terminal, TypedSyntaxNode};
@@ -50,42 +50,36 @@ pub fn extract_implicit_attributes(
         .find(|attr| attr.attr(db).text(db) == IMPLICIT_ATTR);
 
     if let Some(custom_implicts) = maybe_custom_implicit {
-        if let ast::OptionAttributeArgs::AttributeArgs(args) = custom_implicts.args(db) {
+        if let ast::OptionArgListParenthesized::ArgListParenthesized(arg_list) =
+            custom_implicts.arguments(db)
+        {
             let mut implicits = vec![];
             let mut diagnostics = vec![];
 
-            let attr_args = args.arg_list(db).elements(db);
+            let attr_args = arg_list.args(db).elements(db);
             if attr_args.len() == 0 {
                 return Ok(None);
             }
-            //if attr_args.len() % 2 != 0 {
-            //    return Err(vec![PluginDiagnostic {
-            //        stable_ptr: custom_implicts.stable_ptr().untyped(),
-            //        message: "Invalid amount of parameters".into(),
-            //    }]);
-            //}
 
-            for i in (0..attr_args.len()).step_by(1) {
-                let name_expr = &attr_args[i];
-                let type_expr = &attr_args[i /*+ 1*/];
+            for arg in attr_args {
+                if let ArgClause::Named(named_arg) = arg.arg_clause(db) {
+                    let name_text = named_arg.name(db).text(db);
+                    let typex = named_arg.value(db);
 
-                if let [Expr::Path(path_name), Expr::Path(path_type)] = [name_expr, type_expr] {
-                    if let [[PathSegment::Simple(segment_name)], [PathSegment::Simple(_segment_type)]] =
-                        [&path_name.elements(db)[..], &path_type.elements(db)[..]]
-                    {
-                        let name = segment_name.ident(db).text(db);
-                        let typex = SmolStr::from("WarpMemory"); //segment_type.ident(db).text(db);
-                        implicits.push(ImplicitInfo { name, typex });
+                    let simple_path_text = simple_path_from_expr(db, typex);
+                    if let Ok(type_text) = simple_path_text {
+                        implicits.push(ImplicitInfo {
+                            name: name_text,
+                            typex: type_text,
+                        })
                     } else {
-                        diagnostics.push(PluginDiagnostic {
-                            stable_ptr: path_name.stable_ptr().untyped(),
-                            message: "Expected two path segments.".into(),
-                        });
+                        let error = simple_path_text.err().unwrap();
+                        diagnostics.push(error);
                     }
                 } else {
                     diagnostics.push(PluginDiagnostic {
-                        stable_ptr: name_expr.stable_ptr().untyped(),
-                        message: "Expected path expressions.".into(),
+                        stable_ptr: arg.stable_ptr().untyped(),
+                        message: "Expected an argument in the form of: <name>: <type>.".into(),
                     });
                 }
             }
@@ -120,6 +114,20 @@ pub fn get_func_call_name(db: &dyn SyntaxGroup, func_call: &ExprFunctionCall) ->
     // let count = path.elements(db).len();
     // dbg!(count);
     panic!("Couldn't get func call name");
+}
+
+fn simple_path_from_expr(db: &dyn SyntaxGroup, expr: Expr) -> Result<SmolStr, PluginDiagnostic> {
+    let Expr::Path(path) = expr else {
+        return  Err(PluginDiagnostic{
+            stable_ptr: expr.stable_ptr().untyped(), message: "Expected a path expression for type parsing".into()
+        });
+    };
+    let [PathSegment::Simple(segment)] = &path.elements(db)[..] else {
+        return  Err(PluginDiagnostic{
+            stable_ptr: path.stable_ptr().untyped(), message: "Expected a Simple Path when parsing argument type".into()
+        });
+    };
+    Ok(segment.ident(db).text(db))
 }
 
 pub trait IsExpression {

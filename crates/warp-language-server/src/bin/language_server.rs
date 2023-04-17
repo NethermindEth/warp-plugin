@@ -18,7 +18,7 @@ async fn main() {
 
     let mut plugins = get_default_plugins();
     plugins.push(Arc::new(WarpPlugin::new()));
-    plugins.push(Arc::new(StarkNetPlugin {}));
+    plugins.push(Arc::new(StarkNetPlugin::default()));
 
     let db = RootDatabase::builder()
         .detect_corelib()
