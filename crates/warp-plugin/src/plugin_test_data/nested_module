@@ -20,7 +20,7 @@ mod Module1{
 #[contract]
 mod Module1 {
     mod Module {
-        fn toggle(ref b: bool) {
+        fn toggle(ref b: bool, ) {
             b = !b;
         }
     }

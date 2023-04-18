@@ -17,7 +17,6 @@ pub struct BuildArgs {
 }
 
 pub fn run(args: BuildArgs) -> Result<()> {
-    println!("a0");
     let source_dir = match args.path {
         Some(path) => get_absolute_path(path),
         None => Utf8PathBuf::from_path_buf(current_dir().unwrap()).unwrap(),

@@ -91,7 +91,8 @@ cairo_lang_test_utils::test_file_test_with_runner!(
     {
         module: "module",
         nested_module: "nested_module",
-        calls: "calls"
+        calls: "calls",
+        warp_memory: "warp_memory"
     },
     ExpandContractTestRunner
 );

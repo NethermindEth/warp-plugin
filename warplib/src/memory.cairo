@@ -1,19 +1,36 @@
+use dict::Felt252Dict;
 use dict::Felt252DictTrait;
 
+
+struct WarpMemory {
+    pointer: felt252,
+    memory: Felt252Dict::<felt252>
+}
+
 trait WarpMemoryTrait {
-    fn read_u128(ref self: Felt252Dict<u128>, loc: felt252) -> u128;
-    fn read_u256(
-        ref self: Felt252Dict<u128>, loc: felt252
-    ) -> u256;
+    fn initialize() -> WarpMemory;
+    fn insert(ref self: WarpMemory, position: felt252, value: felt252);
+    fn append(ref self: WarpMemory, value: felt252);
 }
 
 impl WarpMemoryImpl of WarpMemoryTrait {
-	fn read_u128(ref self: Felt252Dict<u128>, loc: felt252) -> u128 {
-		self.get(loc)
-	}
-	fn read_u256(
-		ref self: Felt252Dict<u128>, loc: felt252
-	) -> u256 {
-		u256 { low: self.get(loc), high: self.get(loc + 1) }
-	}
+    fn initialize() -> WarpMemory {
+        return WarpMemory {memory: Felt252DictTrait::new(), pointer: 0};
+    }
+
+    fn insert(ref self: WarpMemory, position: felt252, value: felt252) {
+        self.memory.insert(position, value);
+        self.pointer += 1;
+    }
+
+    fn append(ref self: WarpMemory, value: felt252) {
+        self.insert(self.pointer, value);
+    }
 }
+
+impl DestructWarpMemory of Destruct::<WarpMemory> {
+    fn destruct(self: WarpMemory) nopanic {
+        self.memory.squash();
+    }
+}
+

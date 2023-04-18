@@ -200,8 +200,8 @@ fn handle_function_declaration(
                     RewriteNode::Text(
                         implicits
                             .into_iter()
-                            .map(|ii| format!("ref {0}: {1}", ii.name, ii.typex))
-                            .join(", "),
+                            .map(|ii| format!("ref {0}: {1},", ii.name, ii.typex))
+                            .join(""),
                     ),
                 );
             (MaybeRewritten::Some(func_declaration), vec![])

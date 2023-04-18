@@ -1,12 +1,16 @@
 #[contract]
 mod ContractUsesImplicit {
-	#[implicit(warp_memory)]
-	fn read_from_memory(index: felt252) {
-		warp_memory.read_u128(index);
-	}
+    use warplib::memory::WarpMemory;
+    use warplib::memory::WarpMemoryTrait;
+    use warplib::memory::WarpMemoryImpl;
 
-	#[implicit(warp_memory)]
-	fn read_from_memory_2(index: felt252) {
-    		warp_memory.read_u128(index);
-    	}
+	#[implicit(warp_memory: WarpMemory)]
+	fn call_to_insert(value: felt252) {
+    	insert_to_warp_memory(value);
+    }
+
+	#[implicit(warp_memory: WarpMemory)]
+	fn insert_to_warp_memory(value: felt252) {
+		warp_memory.append(value);
+	}
 }
