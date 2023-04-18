@@ -86,7 +86,7 @@ impl TestFileRunner for ExpandContractTestRunner {
 }
 
 cairo_lang_test_utils::test_file_test_with_runner!(
-    expand_contract,
+    custom_implicits,
     "src/plugin_test_data",
     {
         module: "module",
