@@ -87,12 +87,21 @@ impl TestFileRunner for ExpandContractTestRunner {
 
 cairo_lang_test_utils::test_file_test_with_runner!(
     custom_implicits,
-    "src/plugin_test_data",
+    "src/plugin_test_data/implicits",
     {
         module: "module",
         nested_module: "nested_module",
         calls: "calls",
         warp_memory: "warp_memory"
+    },
+    ExpandContractTestRunner
+);
+
+cairo_lang_test_utils::test_file_test_with_runner!(
+starknet_contracts,
+    "src/plugin_test_data/misc",
+    {
+        storage: "storage"
     },
     ExpandContractTestRunner
 );

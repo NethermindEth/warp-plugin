@@ -102,16 +102,21 @@ pub fn get_implicit_arg(db: &dyn SyntaxGroup, arg: Expr) -> Option<SmolStr> {
     None
 }
 
-pub fn get_func_call_name(db: &dyn SyntaxGroup, func_call: &ExprFunctionCall) -> SmolStr {
+pub fn get_func_call_name(db: &dyn SyntaxGroup, func_call: &ExprFunctionCall) -> Option<SmolStr> {
     let path = func_call.path(db);
-    if let [ast::PathSegment::Simple(func_name_token)] = &path.elements(db)[..] {
-        return func_name_token.ident(db).text(db);
+    if let Some(ast::PathSegment::Simple(func_name_token)) = &path.elements(db)[..].last() {
+        return Some(func_name_token.ident(db).text(db));
     }
-    // TODO: blind fix, figure out when this can happen
-    if let [ast::PathSegment::Simple(_), ast::PathSegment::Simple(b)] = &path.elements(db)[..] {
-        return b.ident(db).text(db);
-    }
-    panic!("Couldn't get func call name");
+    None
+    //let function_call_name = path
+    //    .elements(db)
+    //    .into_iter()
+    //    .map(|p| p.as_syntax_node().get_text(db))
+    //    .join("::");
+    //panic!(
+    //    "Couldn not read function call name: {0}",
+    //    function_call_name
+    //);
 }
 
 fn simple_path_from_expr(db: &dyn SyntaxGroup, expr: Expr) -> Result<SmolStr, PluginDiagnostic> {

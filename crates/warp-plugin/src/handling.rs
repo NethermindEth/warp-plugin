@@ -368,11 +368,13 @@ fn handle_function_call(
     if diagnostics.len() > 0 {
         return (maybe_rewritten, diagnostics);
     }
+    let Some(func_name) = get_func_call_name(db, &func_call) else {
+        return (maybe_rewritten, diagnostics);
+    };
 
     let (mut should_rewrite, mut rewritten_call) =
         (maybe_rewritten.rewritten(), maybe_rewritten.unwrap());
 
-    let func_name = get_func_call_name(db, &func_call);
     if let Some(custom_implicits) = function_with_implicits.get(&func_name) {
         let arg_children = rewritten_call
             .modify_child(db, ExprFunctionCall::INDEX_ARGUMENTS)

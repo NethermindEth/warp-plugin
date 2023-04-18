@@ -1,0 +1,25 @@
+//! > Testing the plugin does not break normal compilation
+
+//! > test_runner_name
+ExpandContractTestRunner
+
+//! > cairo_code
+#[contract]
+mod C {
+    struct Storage {
+        data: LegacyMap::<felt252, felt252>,
+        complex_data: LegacyMap<(felt252, felt252), felt252>,
+        simple_data: felt252
+    }
+}
+//! > expected_diagnostics
+
+//! > generated_cairo_code
+#[contract]
+mod C {
+    struct Storage {
+        data: LegacyMap::<felt252, felt252>,
+        complex_data: LegacyMap<(felt252, felt252), felt252>,
+        simple_data: felt252
+    }
+}
