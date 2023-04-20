@@ -60,7 +60,7 @@ cd warp-plugin
 cargo build --all --release
 ```
 
-The building process can take a few minuts.
+The building process can take a few minutes.
 
 ## Use
 
@@ -68,7 +68,7 @@ The building process can take a few minuts.
 
 - A Lib compiler, provided by Scarb
 
-- The normal StarkNet compiler
+- The normal Starknet compiler
 
 - Modified Starknet compiler which executes the plugin
 
