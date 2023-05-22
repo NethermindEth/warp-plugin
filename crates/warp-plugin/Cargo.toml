@@ -35,8 +35,8 @@ regex = "1.7.1"
 [dev-dependencies]
 env_logger.workspace = true
 cairo-lang-formatter.workspace = true
-cairo-lang-semantic = { version = "1.0.0-alpha.7", features = ["testing"] }
-cairo-lang-test-utils = { version = "1.0.0-alpha.7" }
+cairo-lang-semantic = { version = "1.0.0-rc0", features = ["testing"] }
+cairo-lang-test-utils = { version = "1.0.0-rc0" }
 pretty_assertions.workspace = true
 test-case = "2.2.2"
 test-case-macros = "2.2.2"
