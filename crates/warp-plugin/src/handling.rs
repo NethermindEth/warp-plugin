@@ -286,6 +286,7 @@ fn handle_statement(
 
             (maybe_rewritten, diagnostics)
         }
+        Statement::Continue(stmnt) => (MaybeRewritten::None(RewriteNode::from_ast(&stmnt)), vec![]),
         Statement::Expr(stmnt) => {
             let (rewritten_expr, diagnostics) =
                 handle_expression(db, function_with_implicits, stmnt.expr(db));

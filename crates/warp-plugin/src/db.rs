@@ -51,21 +51,24 @@ impl WarpRootDatabaseBuilderEx for RootDatabaseBuilder {
     ///
     fn with_warp(&mut self) -> &mut Self {
         // Override implicit precedence for compatibility with Starknet.
-        let precedence = [
-            "Pedersen",
-            "RangeCheck",
-            "Bitwise",
-            "EcOp",
-            "GasBuiltin",
-            "System",
-        ];
+        //let precedence = [
+        //    "Pedersen",
+        //    "RangeCheck",
+        //    "Bitwise",
+        //    "EcOp",
+        //    "GasBuiltin",
+        //    "System",
+        //];
+        //
 
-        let mut plugins = get_default_plugins();
-        plugins.push(Arc::new(WarpPlugin::new()));
-        plugins.push(Arc::new(StarkNetPlugin::default()));
+        //let mut plugins = get_default_plugins();
+        //plugins.push(Arc::new(WarpPlugin::new()));
+        //plugins.push(Arc::new(StarkNetPlugin::default()));
+        //self.with_implicit_precedence(&precedence)
+        //    .with_plugins(plugins)
 
-        self.with_implicit_precedence(&precedence)
-            .with_plugins(plugins)
+        self.with_semantic_plugin(Arc::new(WarpPlugin::new()));
+        self.with_semantic_plugin(Arc::new(StarkNetPlugin::default()))
     }
 
     /// Sets up the Warp default configuration for a Cairo RootDatabaseBuilder instance, overriding the config
