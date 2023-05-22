@@ -6,7 +6,6 @@ use anyhow::Result;
 use cairo_lang_compiler::db::{RootDatabase, RootDatabaseBuilder};
 use cairo_lang_filesystem::db::init_dev_corelib;
 use cairo_lang_filesystem::ids::Directory;
-use cairo_lang_plugins::get_default_plugins;
 use cairo_lang_project::{ProjectConfig, ProjectConfigContent};
 use cairo_lang_semantic::db::SemanticGroup;
 use cairo_lang_semantic::plugin::SemanticPlugin;
