@@ -26,6 +26,7 @@ mod Module {
         value = value + index;
     }
 
+
     fn sub(ref value: felt252, index: felt252) {
         value = value - index;
     }
