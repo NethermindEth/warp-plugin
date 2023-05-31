@@ -1,6 +1,7 @@
 use cairo_lang_defs::plugin::PluginDiagnostic;
+use cairo_lang_semantic::patcher::RewriteNode;
 use cairo_lang_syntax::node::ast::{
-    ArgClause, Expr, ExprFunctionCall, FunctionWithBody, ModuleBody, PathSegment,
+    ArgClause, AttributeList, Expr, ExprFunctionCall, FunctionWithBody, ModuleBody, PathSegment,
 };
 use cairo_lang_syntax::node::kind::SyntaxKind;
 use cairo_lang_syntax::node::{ast, db::SyntaxGroup, Terminal, TypedSyntaxNode};
@@ -43,13 +44,10 @@ pub fn extract_implicit_attributes(
     db: &dyn SyntaxGroup,
     func: &FunctionWithBody,
 ) -> Result<Option<Vec<ImplicitInfo>>, Vec<PluginDiagnostic>> {
-    let maybe_custom_implicit = func
-        .attributes(db)
-        .elements(db)
-        .into_iter()
-        .find(|attr| attr.attr(db).text(db) == IMPLICIT_ATTR);
+    let custom_implict_index = find_implicit_attr(db, &func.attributes(db));
 
-    if let Some(custom_implicts) = maybe_custom_implicit {
+    if let Some(index) = custom_implict_index {
+        let custom_implicts = &func.attributes(db).elements(db)[index];
         if let ast::OptionArgListParenthesized::ArgListParenthesized(arg_list) =
             custom_implicts.arguments(db)
         {
@@ -91,6 +89,34 @@ pub fn extract_implicit_attributes(
         }
     }
     Ok(None)
+}
+
+/// Given a function it returns it's attribute list without `implicit`
+pub fn remove_implicit_from_attributes(
+    db: &dyn SyntaxGroup,
+    func: &FunctionWithBody,
+) -> RewriteNode {
+    let attributes = func.attributes(db);
+    let custom_implict_index = find_implicit_attr(db, &attributes);
+    let mut rewritten_attributes = RewriteNode::from_ast(&attributes);
+
+    if let Some(index) = custom_implict_index {
+        rewritten_attributes
+            .modify(db)
+            .children
+            .as_mut()
+            .unwrap()
+            .remove(index);
+    }
+
+    rewritten_attributes
+}
+
+fn find_implicit_attr(db: &dyn SyntaxGroup, attributes: &AttributeList) -> Option<usize> {
+    attributes
+        .elements(db)
+        .iter()
+        .position(|attr| attr.attr(db).text(db) == IMPLICIT_ATTR)
 }
 
 pub fn get_implicit_arg(db: &dyn SyntaxGroup, arg: Expr) -> Option<SmolStr> {

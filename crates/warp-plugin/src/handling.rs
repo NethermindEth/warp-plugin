@@ -11,8 +11,8 @@ use smol_str::SmolStr;
 use std::collections::HashMap;
 
 use crate::utils::{
-    extract_implicit_attributes, gather_function_with_implicits, get_func_call_name, FuncName,
-    Implicits, IsExpression,
+    extract_implicit_attributes, gather_function_with_implicits, get_func_call_name,
+    remove_implicit_from_attributes, FuncName, Implicits, IsExpression,
 };
 use std::string::String;
 
@@ -168,11 +168,15 @@ pub fn handle_function(
         );
     }
 
+    let rewritten_attributes = remove_implicit_from_attributes(db, &function_body);
     let rewritten_function = RewriteNode::interpolate_patched(
-        "$func_decl$ 
+        "
+        $attributes$
+        $func_decl$ 
             $body$
         ",
         HashMap::from([
+            ("attributes".to_string(), rewritten_attributes),
             ("func_decl".to_string(), rewritten_declaration.unwrap()),
             ("body".to_string(), rewritten_expr_bloc.unwrap()),
         ]),
@@ -187,8 +191,8 @@ fn handle_function_declaration(
 ) -> HandlingResult {
     match extract_implicit_attributes(db, &func_body) {
         Ok(Some(implicits)) => {
-            let mut func_declaration = RewriteNode::from_ast(&func_body.declaration(db));
-            func_declaration
+            let mut rewritten_func_decl = RewriteNode::from_ast(&func_body.declaration(db));
+            rewritten_func_decl
                 .modify_child(db, FunctionDeclaration::INDEX_SIGNATURE)
                 .modify_child(db, FunctionSignature::INDEX_PARAMETERS)
                 .modify(db)
@@ -204,7 +208,7 @@ fn handle_function_declaration(
                             .join(""),
                     ),
                 );
-            (MaybeRewritten::Some(func_declaration), vec![])
+            (MaybeRewritten::Some(rewritten_func_decl), vec![])
         }
         Err(diagnostics) => (
             MaybeRewritten::None(RewriteNode::from_ast(&func_body.declaration(db))),
