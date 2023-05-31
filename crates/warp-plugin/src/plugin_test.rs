@@ -92,7 +92,8 @@ cairo_lang_test_utils::test_file_test_with_runner!(
         module: "module",
         nested_module: "nested_module",
         calls: "calls",
-        warp_memory: "warp_memory"
+        warp_memory_basic: "warp_memory_basic",
+        warp_memory_accessor: "warp_memory_accessor"
     },
     ExpandContractTestRunner
 );

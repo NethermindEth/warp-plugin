@@ -24,6 +24,7 @@ impl Compiler for WarpCompiler {
     /// # Arguments
     ///
     /// * `unit` - The compilation unit to be compiled.
+    /// * `db` - The current database
     /// * `ws` - The workspace that contains the project configuration.
     ///
     /// # Returns
@@ -35,23 +36,8 @@ impl Compiler for WarpCompiler {
         db: &mut RootDatabase,
         ws: &Workspace<'_>,
     ) -> Result<()> {
-        // let props = unit.target().kind; //.downcast::<ExternalTargetKind>();
-        // ensure!(
-        //     props.params.is_empty(),
-        //     "target `{}` does not accept any parameters",
-        //     props.kind_name
-        // );
-
         let target_dir = unit.target_dir(ws.config());
-
-        //let config = build_project_config(&unit)?;
-        //let mut db = RootDatabase::builder()
-        //    .with_project_config(config)
-        //    .with_warp()
-        //    .build()?;
-
         let compiler_config = build_compiler_config(&unit, ws);
-
         let main_crate_ids = collect_main_crate_ids(&unit, &db);
 
         let contracts = {

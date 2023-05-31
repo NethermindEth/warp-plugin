@@ -1,5 +1,4 @@
 use std::env::{self, current_dir};
-// use std::fs;
 
 use anyhow::Result;
 use camino::Utf8PathBuf;
@@ -9,6 +8,7 @@ use scarb::core::Config;
 use scarb::ops;
 use scarb::ui::Verbosity;
 use warp_plugin::compiler::WarpCompiler;
+use warp_plugin::plugin::CairoPluginRepository;
 
 #[derive(Args, Debug)]
 pub struct BuildArgs {
@@ -25,6 +25,8 @@ pub fn run(args: BuildArgs) -> Result<()> {
     let mut compilers = CompilerRepository::std();
     compilers.add(Box::new(WarpCompiler)).unwrap();
 
+    let cairo_plugins = CairoPluginRepository::new();
+
     let manifest_path = source_dir.join("Scarb.toml");
     dbg!(&manifest_path);
 
@@ -32,6 +34,7 @@ pub fn run(args: BuildArgs) -> Result<()> {
         .ui_verbosity(Verbosity::Verbose)
         .log_filter_directive(env::var_os("SCARB_LOG"))
         .compilers(compilers)
+        .cairo_plugins(cairo_plugins.into())
         .build()
         .unwrap();
 
@@ -39,8 +42,7 @@ pub fn run(args: BuildArgs) -> Result<()> {
         eprintln!("error: {}", err);
         std::process::exit(1);
     });
-    let x = ops::compile(&ws);
-    x
+    ops::compile(&ws)
 }
 
 fn get_absolute_path(path: Utf8PathBuf) -> Utf8PathBuf {
