@@ -1,0 +1,55 @@
+//! > Test expansion of a function signature depending on warp memory.
+
+//! > test_runner_name
+ExpandContractTestRunner
+
+//! > cairo_code
+#[contract]
+mod ContractUsesImplicit {
+    use warplib::warp_memory::WarpMemory;
+    use warplib::warp_memory::WarpMemoryTrait;
+
+    #[view]
+    fn init_and_call() {
+        let mut warp_memory = WarpMemoryTrait::initialize();
+        call_to_alloc(50);
+    }
+    
+	#[implicit(warp_memory: WarpMemory)]
+	fn call_to_alloc(value: felt252) {
+    	warp_memory.alloc(value);
+        call_to_write(value - 1, value);
+    }
+
+	#[implicit(warp_memory: WarpMemory)]
+	fn call_to_write(index: felt252, value: felt252) {
+		warp_memory.write(index, value);
+	}
+}
+
+//! > expected_diagnostics
+
+//! > generated_cairo_code
+#[contract]
+mod ContractUsesImplicit {
+    use warplib::warp_memory::WarpMemory;
+    use warplib::warp_memory::WarpMemoryTrait;
+
+
+    #[view]
+    fn init_and_call() {
+        let mut warp_memory = WarpMemoryTrait::initialize();
+        call_to_alloc(ref warp_memory, 50);
+    }
+
+
+    fn call_to_alloc(ref warp_memory: WarpMemory, value: felt252) {
+        warp_memory.alloc(value);
+        call_to_write(ref warp_memory, value - 1, value);
+    }
+
+
+    fn call_to_write(ref warp_memory: WarpMemory, index: felt252, value: felt252) {
+        warp_memory.write(index, value);
+    }
+}

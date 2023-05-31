@@ -28,6 +28,8 @@ mod Module {
         let index = 3;
         increase_x(ref x, index);
     }
+
+
     fn increase_x(ref x: felt252, index: felt252) {
         x = x + index;
     }

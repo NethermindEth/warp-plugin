@@ -6,7 +6,6 @@ use anyhow::Result;
 use cairo_lang_compiler::db::{RootDatabase, RootDatabaseBuilder};
 use cairo_lang_filesystem::db::init_dev_corelib;
 use cairo_lang_filesystem::ids::Directory;
-use cairo_lang_plugins::get_default_plugins;
 use cairo_lang_project::{ProjectConfig, ProjectConfigContent};
 use cairo_lang_semantic::db::SemanticGroup;
 use cairo_lang_semantic::plugin::SemanticPlugin;
@@ -50,22 +49,9 @@ impl WarpRootDatabaseBuilderEx for RootDatabaseBuilder {
     /// implicit precedence set for compatibility with Starknet.
     ///
     fn with_warp(&mut self) -> &mut Self {
-        // Override implicit precedence for compatibility with Starknet.
-        let precedence = [
-            "Pedersen",
-            "RangeCheck",
-            "Bitwise",
-            "EcOp",
-            "GasBuiltin",
-            "System",
-        ];
-
-        let mut plugins = get_default_plugins();
-        plugins.push(Arc::new(WarpPlugin::new()));
-        plugins.push(Arc::new(StarkNetPlugin::default()));
-
-        self.with_implicit_precedence(&precedence)
-            .with_plugins(plugins)
+        self.with_semantic_plugin(Arc::new(WarpPlugin::new()));
+        self.with_semantic_plugin(Arc::new(StarkNetPlugin::default()));
+        self
     }
 
     /// Sets up the Warp default configuration for a Cairo RootDatabaseBuilder instance, overriding the config
