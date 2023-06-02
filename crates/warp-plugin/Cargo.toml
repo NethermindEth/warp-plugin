@@ -37,8 +37,10 @@ camino = "1.1.2"
 [dev-dependencies]
 env_logger.workspace = true
 cairo-lang-formatter.workspace = true
-cairo-lang-semantic = { version = "1.0.0-rc0", features = ["testing"] }
-cairo-lang-test-utils = { version = "1.0.0-rc0" }
+cairo-lang-semantic = { version = "1.1.0", git = "https://github.com/starkware-libs/cairo.git", rev = "43b83560", features = [
+  "testing",
+] }
+cairo-lang-test-utils = { version = "1.1.0", git = "https://github.com/starkware-libs/cairo.git", rev = "43b83560" }
 pretty_assertions.workspace = true
 test-case = "2.2.2"
 test-case-macros = "2.2.2"
