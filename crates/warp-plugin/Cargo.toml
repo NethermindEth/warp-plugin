@@ -32,16 +32,15 @@ smol_str.workspace = true
 tracing = "0.1.37"
 regex = "1.7.1"
 semver = "1.0.5"
-camino = "1.1.2"
+camino = { version = "1.1.2", features = ["serde1"] }
 
 [dev-dependencies]
 env_logger.workspace = true
 cairo-lang-formatter.workspace = true
-cairo-lang-semantic = { version = "1.1.0", git = "https://github.com/starkware-libs/cairo.git", rev = "43b83560", features = [
-  "testing",
-] }
-cairo-lang-test-utils = { version = "1.1.0", git = "https://github.com/starkware-libs/cairo.git", rev = "43b83560" }
+cairo-lang-semantic = { version = "1.1.0", features = ["testing"] }
+cairo-lang-test-utils = { version = "1.1.0" }
 pretty_assertions.workspace = true
 test-case = "2.2.2"
 test-case-macros = "2.2.2"
 test-log.workspace = true
+assert_fs.workspace = true
