@@ -56,7 +56,8 @@ impl Compiler for WarpCompiler {
 
         let classes = {
             let _ = trace_span!("compile_starknet").enter();
-            compile_prepared_db(db, &contracts, compiler_config)?
+            let x = compile_prepared_db(db, &contracts, compiler_config)?;
+            x
         };
 
         for (decl, class) in zip(contracts, classes) {
@@ -73,4 +74,39 @@ impl Compiler for WarpCompiler {
 
         Ok(())
     }
+}
+
+#[test]
+fn test_compiler() {
+    use crate::plugin::CairoPluginRepository;
+    use assert_fs::TempDir;
+    use camino::{Utf8Path, Utf8PathBuf};
+    use scarb::compiler::CompilerRepository;
+    use scarb::core::Config;
+    use scarb::ops;
+    use std::env;
+
+    let mut compilers = CompilerRepository::std();
+    compilers.add(Box::new(WarpCompiler)).unwrap();
+
+    let cairo_plugins = CairoPluginRepository::new();
+
+    let cache_dir = TempDir::new().unwrap();
+    let config_dir = TempDir::new().unwrap();
+
+    let path = Utf8PathBuf::from_path_buf("../../examples/Scarb.toml".into()).unwrap();
+    let config = Config::builder(path.canonicalize_utf8().unwrap())
+        .global_cache_dir_override(Some(Utf8Path::from_path(cache_dir.path()).unwrap()))
+        .global_config_dir_override(Some(Utf8Path::from_path(config_dir.path()).unwrap()))
+        .ui_verbosity(scarb::ui::Verbosity::Verbose)
+        .log_filter_directive(env::var_os("SCARB_LOG"))
+        .compilers(compilers)
+        .cairo_plugins(cairo_plugins.into())
+        .build()
+        .unwrap();
+
+    let ws = ops::read_workspace(config.manifest_path(), &config)
+        .unwrap_or_else(|op| panic!("Error building workspace: {op:?}"));
+
+    ops::compile(&ws).unwrap_or_else(|op| panic!("Error compiling: {op:?}"))
 }
