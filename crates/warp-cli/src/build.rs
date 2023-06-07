@@ -3,7 +3,7 @@ use std::env::{self, current_dir};
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use clap::Args;
-use scarb::compiler::CompilerRepository;
+use scarb::compiler::{CompilerRepository, Profile};
 use scarb::core::Config;
 use scarb::ops;
 use scarb::ui::Verbosity;
@@ -28,13 +28,12 @@ pub fn run(args: BuildArgs) -> Result<()> {
     let cairo_plugins = CairoPluginRepository::new();
 
     let manifest_path = source_dir.join("Scarb.toml");
-    dbg!(&manifest_path);
-
     let config = Config::builder(manifest_path)
         .ui_verbosity(Verbosity::Verbose)
         .log_filter_directive(env::var_os("SCARB_LOG"))
         .compilers(compilers)
         .cairo_plugins(cairo_plugins.into())
+        .profile(Profile::RELEASE)
         .build()
         .unwrap();
 

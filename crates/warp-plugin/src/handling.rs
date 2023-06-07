@@ -265,12 +265,12 @@ fn handle_expression_blocks(
     (MaybeRewritten::Some(expr_bloc_rewrriten), diagnostics)
 }
 
-// TODO: Refactor branches (very similar each one!)
 fn handle_statement(
     db: &dyn SyntaxGroup,
     function_with_implicits: &HashMap<FuncName, Implicits>,
     statement: Statement,
 ) -> HandlingResult {
+    // TODO: Refactor branches (very similar each one!)
     match statement {
         Statement::Break(stmnt) => {
             let (rewritten_expr, diagnostics) =

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 use cairo_lang_defs::plugin::{
@@ -25,6 +26,8 @@ use semver::Version;
 use smol_str::SmolStr;
 
 use crate::handling::{handle_function, handle_module, MaybeRewritten};
+
+use url::Url;
 
 /// Warp related auxiliary data of the Warp plugin.
 #[derive(Debug, PartialEq, Eq)]
@@ -78,11 +81,11 @@ impl PluginAuxData for WarpAuxData {
 mod test;
 
 #[derive(Debug, Default)]
-pub struct WarpPlugin {}
+pub struct WarpPlugin;
 
 impl WarpPlugin {
     pub fn new() -> Self {
-        Self {}
+        Self
     }
 
     /// Handles a Cairo module's syntax nodes and returns a PluginResult containing the generated code
@@ -210,23 +213,38 @@ impl CairoPluginRepository {
     pub fn new() -> Self {
         let mut repo = scarb::compiler::plugin::CairoPluginRepository::empty();
 
-        let package_id = PackageId::new(
+        let warp_package_id = PackageId::new(
             PackageName::new("warp_plugin"),
             Version::parse("0.1.0").unwrap(),
             SourceId::for_std(),
         );
         repo.add(Box::new(BuiltinSemanticCairoPlugin::<WarpPlugin>::new(
-            package_id,
+            warp_package_id,
         )))
         .unwrap();
 
-        let local_package_id = PackageId::new(
+        let warp_package_git_id = PackageId::new(
+            PackageName::new("warp_plugin"),
+            Version::parse("0.1.0").unwrap(),
+            SourceId::for_git(
+                &Url::parse("https://github.com/NethermindEth/warp-plugin").unwrap(),
+                &scarb::core::GitReference::Branch("devdev".into()),
+            )
+            .unwrap(),
+        );
+        repo.add(Box::new(BuiltinSemanticCairoPlugin::<WarpPlugin>::new(
+            warp_package_git_id,
+        )))
+        .unwrap();
+
+        let warp_local_package_id = PackageId::new(
             PackageName::new("warp_plugin"),
             Version::parse("0.1.0").unwrap(),
             SourceId::for_path(Utf8Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap(),
         );
+        dbg!(env!("CARGO_MANIFEST_DIR"));
         repo.add(Box::new(BuiltinSemanticCairoPlugin::<WarpPlugin>::new(
-            local_package_id,
+            warp_local_package_id,
         )))
         .unwrap();
 
@@ -253,5 +271,11 @@ impl Default for CairoPluginRepository {
 impl From<CairoPluginRepository> for scarb::compiler::plugin::CairoPluginRepository {
     fn from(val: CairoPluginRepository) -> Self {
         val.0
+    }
+}
+
+impl fmt::Debug for CairoPluginRepository {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }

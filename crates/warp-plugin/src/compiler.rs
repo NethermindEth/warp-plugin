@@ -56,8 +56,7 @@ impl Compiler for WarpCompiler {
 
         let classes = {
             let _ = trace_span!("compile_starknet").enter();
-            let x = compile_prepared_db(db, &contracts, compiler_config)?;
-            x
+            compile_prepared_db(db, &contracts, compiler_config)?
         };
 
         for (decl, class) in zip(contracts, classes) {
@@ -100,8 +99,8 @@ fn test_compiler() {
         .global_config_dir_override(Some(Utf8Path::from_path(config_dir.path()).unwrap()))
         .ui_verbosity(scarb::ui::Verbosity::Verbose)
         .log_filter_directive(env::var_os("SCARB_LOG"))
-        .compilers(compilers)
         .cairo_plugins(cairo_plugins.into())
+        .compilers(compilers)
         .build()
         .unwrap();
 
