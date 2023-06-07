@@ -24,22 +24,22 @@ mod WARP {
     fn wm0_static_array(e0: u8, e1: u8) -> felt252 {
         let start = warp_memory.unsafe_alloc(2);
 
-        //warp_memory.store(start, e0);
-        //warp_memory.store(start + 1, e1);
-        //start
-        3
+        warp_memory.store(start, e0);
+        warp_memory.store(start + 1, e1);
+
+        start
     }
 
     #[implicit(warp_memory: WarpMemory)]
     fn wm1_static_array(e0: u256, e1: u256) -> felt252 {
-        //let start = warp_memory.unsafe_alloc(4);
+        let start = warp_memory.unsafe_alloc(4);
 
-        //warp_memory.store(start, e0.low);
-        //warp_memory.store(start + 1, e0.high);
-        //warp_memory.store(start + 2, e1.low);
-        //warp_memory.store(start + 3, e1.high);
-        //start
-        3
+        warp_memory.store(start, e0.low);
+        warp_memory.store(start + 1, e0.high);
+        warp_memory.store(start + 2, e1.low);
+        warp_memory.store(start + 3, e1.high);
+
+        start
     }
 }
 
