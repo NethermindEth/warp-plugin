@@ -213,6 +213,8 @@ impl CairoPluginRepository {
     pub fn new() -> Self {
         let mut repo = scarb::compiler::plugin::CairoPluginRepository::empty();
 
+        // Several packages that targets the same plugin through different ways:
+        // This package target the plugin inside the compiler, still unsupported by scarb 0.4
         let warp_package_id = PackageId::new(
             PackageName::new("warp_plugin"),
             Version::parse("0.1.0").unwrap(),
@@ -223,6 +225,8 @@ impl CairoPluginRepository {
         )))
         .unwrap();
 
+        // This package target the plugin located on the repo
+        // Example of use in examples/Scarb.toml
         let warp_package_git_id = PackageId::new(
             PackageName::new("warp_plugin"),
             Version::parse("0.1.0").unwrap(),
@@ -237,17 +241,19 @@ impl CairoPluginRepository {
         )))
         .unwrap();
 
+        // This package target the plugin located on a local filesystem
+        // Example of use in examples/Scarb.toml
         let warp_local_package_id = PackageId::new(
             PackageName::new("warp_plugin"),
             Version::parse("0.1.0").unwrap(),
             SourceId::for_path(Utf8Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap(),
         );
-        dbg!(env!("CARGO_MANIFEST_DIR"));
         repo.add(Box::new(BuiltinSemanticCairoPlugin::<WarpPlugin>::new(
             warp_local_package_id,
         )))
         .unwrap();
 
+        // This package represents that Starknet Plugin
         let starknet_package_id = PackageId::new(
             PackageName::STARKNET,
             Version::parse("1.1.0").unwrap(),
