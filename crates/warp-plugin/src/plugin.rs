@@ -232,7 +232,7 @@ impl CairoPluginRepository {
             Version::parse("0.1.0").unwrap(),
             SourceId::for_git(
                 &Url::parse("https://github.com/NethermindEth/warp-plugin").unwrap(),
-                &scarb::core::GitReference::Branch("devdev".into()),
+                &scarb::core::GitReference::DefaultBranch,
             )
             .unwrap(),
         );
