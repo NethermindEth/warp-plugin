@@ -1,10 +1,19 @@
 [package]
 name = "examples"
 version = "0.1.0"
-
-# See more keys and their definitions at https://github.com/software-mansion/scarb/blob/main/scarb/src/core/manifest/toml_manifest.rs
+cairo-version = "1.1.0"
 
 [dependencies]
-warplib = { path = "../warplib" }
+starknet = ">=1.1.0"
 
-[[target.warp]]
+## Referencing using local package:
+warp_plugin = { path = "../crates/warp-plugin" }
+
+## Referencing using git:
+# warp_plugin = { git = "https://github.com/NethermindEth/warp-plugin", crate = "warp-plugin", branch = "devdev" }
+
+## Referencing using the warp-plugin compiled as part of this project:
+## As for scarb 0.4 this is still an unsupported feature
+# warp_plugin = ">=0.1.0"
+
+warplib = { path = "../warplib" }

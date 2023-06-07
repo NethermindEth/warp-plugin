@@ -158,7 +158,7 @@ impl WarpPlugin {
     /// The plugin does not support free functions
     fn _handle_function(&self, db: &dyn SyntaxGroup, func_ast: &FunctionWithBody) -> PluginResult {
         // dbg!(format!("Handling external function"));
-        // TODO(Performance): Avoid this clone
+        // TODO: Avoid this clone
         let (maybe_rewriten_func, implicit_diagnostics) =
             handle_function(db, &HashMap::new(), func_ast.clone());
         return if let MaybeRewritten::Some(rewritten_func) = maybe_rewriten_func {
